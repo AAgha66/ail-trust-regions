@@ -1,0 +1,41 @@
+---
+# DEFAULT parameters (Optional)
+name: "DEFAULT"         # MUST BE 'DEFAULT'
+path: "../exp/"         # location to save results in
+repetitions: 1          # number of times one set of parameters is run
+params:
+  num_env_steps: 8.0e+5
+  n_trials: 60
+  logging: False
+  summary: False
+
+---
+# Slurm bwuni cpu
+name: "SLURM"   # MUST BE "SLURM"
+partition: "single"  # "single" for cpu, "gpu_4" or gpu_8" for gpu
+job-name: "hpo_jl" #this will be the experiment's name in slurm
+num_parallel_jobs: 100 # max number of jobs executed in parallel
+ntasks: 1   #  leave that like it is
+cpus-per-task: 4   # there are 10 cores for each GPU
+mem-per-cpu: 2250  # in MB
+time: 3000   # in minutes
+
+
+#experiment_copy_auto_dst: "/home/kit/anthropomatik/kn6273/Repos/autodst/16.07/"
+#experiment_copy_src: "."
+
+---
+# Experiment
+name: "hpo_jl"
+# Required: Can also be set in DEFAULT
+path: "/home/kit/anthropomatik/kn6273/Repos/logs/hpo_16.07_jl/"   # location to save results in
+repetitions: 1  # number of times one set of parameters is run
+
+# Experiment Parameters
+list:
+    config_file: ['configs/gail_trl.yaml', 'configs/gail_trl.yaml', 'configs/gail_trl.yaml', 'configs/gail_trl.yaml', 
+    'configs/gail_ppo.yaml', 'configs/gail_ppo.yaml']
+    use_proj: [True, True, True, True, False, False]
+    proj_type: ['kl', 'kl', 'w2', 'w2', 'None', 'None']
+    env_name: ['Walker2d-v2', 'HalfCheetah-v2', 'Walker2d-v2', 'HalfCheetah-v2', 'Walker2d-v2', 'HalfCheetah-v2']
+    gradient_penalty: [False, False, False, False, False, False]
