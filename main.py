@@ -164,6 +164,8 @@ def main(config=None, args_dict=None):
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
         gail_norm_grad = []
+        acc_policy = []
+        acc_expert = []
         if args_dict['use_gail']:
             if j >= 10:
                 envs.venv.eval()
@@ -172,9 +174,12 @@ def main(config=None, args_dict=None):
             if j < 10:
                 gail_epoch = 100  # Warm up
             for _ in range(gail_epoch):
-                _, gail_norm_grad_epoch = discr.update(gail_train_loader, rollouts,
-                                                       utils.utils.get_vec_normalize(envs)._obfilt)
+                _, gail_norm_grad_epoch, acc_policy_epoch, acc_expert_epoch = \
+                    discr.update(gail_train_loader, rollouts, utils.utils.get_vec_normalize(envs)._obfilt)
+
                 gail_norm_grad.extend(gail_norm_grad_epoch)
+                acc_policy.extend(acc_policy_epoch)
+                acc_expert.extend(acc_expert_epoch)
 
             for step in range(args_dict['num_steps']):
                 rollouts.rewards[step] = discr.predict_reward(
@@ -230,7 +235,7 @@ def main(config=None, args_dict=None):
                 # can do stuff with moving_ave here
                 moving_aves.append(moving_ave)
             moving_avg_counter += 1
-
+            print("Evaluation: " + str(mean_eval_episode_rewards))
             if args_dict['summary']:
                 writer.add_scalar('mean_eval_episode_rewards',
                                   mean_eval_episode_rewards, total_num_steps)
@@ -262,6 +267,10 @@ def main(config=None, args_dict=None):
                 if args_dict['summary']:
                     writer.add_scalar('norm_grad_policy',
                                       metrics['norm_grad_policy'][i], policy_iters)
+                    writer.add_scalar('norm_grad_policy',
+                                      metrics['norm_grad_policy'][i], policy_iters)
+                    writer.add_scalar('norm_grad_policy',
+                                      metrics['norm_grad_policy'][i], policy_iters)
                 policy_iters += 1
 
             for i, _ in enumerate(gail_norm_grad):
@@ -269,6 +278,10 @@ def main(config=None, args_dict=None):
                 if args_dict['summary']:
                     writer.add_scalar('norm_grad_disc',
                                       gail_norm_grad[i], gail_iters)
+                    writer.add_scalar('acc_policy',
+                                      acc_policy[i], gail_iters)
+                    writer.add_scalar('acc_policy',
+                                      acc_expert[i], gail_iters)
                 gail_iters += 1
             f.flush()
 

@@ -64,11 +64,15 @@ class Discriminator(nn.Module):
         loss = 0
         n = 0
         norm_grad = []
+        acc_policy = []
+        acc_expert = []
         for expert_batch, policy_batch in zip(expert_loader,
                                               policy_data_generator):
             policy_state, policy_action = policy_batch[0], policy_batch[1]
             policy_d = self.trunk(
                 torch.cat([policy_state, policy_action], dim=1))
+
+            acc_policy.append(torch.sum(torch.sigmoid(policy_d) > 0.5)/policy_d.shape[0])
 
             expert_state, expert_action = expert_batch
             expert_state = obsfilt(expert_state.numpy(), update=False)
@@ -76,6 +80,7 @@ class Discriminator(nn.Module):
             expert_action = expert_action.to(self.device)
             expert_d = self.trunk(
                 torch.cat([expert_state, expert_action], dim=1))
+            acc_expert.append(torch.sum(torch.sigmoid(expert_d) > 0.5) / policy_d.shape[0])
 
             expert_loss = F.binary_cross_entropy_with_logits(
                 expert_d,
@@ -116,7 +121,7 @@ class Discriminator(nn.Module):
             else:
                 gail_loss.backward()
             self.optimizer.step()
-        return loss / n, norm_grad
+        return loss / n, norm_grad, acc_policy, acc_expert
 
     def predict_reward(self, state, action, gamma, masks, update_rms=True):
         with torch.no_grad():
@@ -124,6 +129,7 @@ class Discriminator(nn.Module):
             d = self.trunk(torch.cat([state, action], dim=1))
             s = torch.sigmoid(d)
             reward = -torch.log(1 - s + 1e-8)
+            #reward = torch.log(s) - torch.log(1 - s)
             if self.returns is None:
                 self.returns = reward.clone()
 
@@ -131,7 +137,7 @@ class Discriminator(nn.Module):
                 self.returns = self.returns * masks * gamma + reward
                 self.ret_rms.update(self.returns.cpu().numpy())
 
-            return reward / np.sqrt(self.ret_rms.var[0] + 1e-8)
+            return reward
 
 
 class ExpertDataset(torch.utils.data.Dataset):
