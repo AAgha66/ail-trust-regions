@@ -280,7 +280,7 @@ def main(config=None, args_dict=None):
                                       gail_norm_grad[i], gail_iters)
                     writer.add_scalar('acc_policy',
                                       acc_policy[i], gail_iters)
-                    writer.add_scalar('acc_policy',
+                    writer.add_scalar('acc_expert',
                                       acc_expert[i], gail_iters)
                 gail_iters += 1
             f.flush()

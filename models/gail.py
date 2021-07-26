@@ -72,7 +72,7 @@ class Discriminator(nn.Module):
             policy_d = self.trunk(
                 torch.cat([policy_state, policy_action], dim=1))
 
-            acc_policy.append(torch.sum(torch.sigmoid(policy_d) > 0.5)/policy_d.shape[0])
+            acc_policy.append(torch.sum(torch.sigmoid(policy_d) < 0.5)/policy_d.shape[0])
 
             expert_state, expert_action = expert_batch
             expert_state = obsfilt(expert_state.numpy(), update=False)
