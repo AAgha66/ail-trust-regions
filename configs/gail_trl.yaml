@@ -4,7 +4,8 @@
  gail_experts_dir: './gail_experts'
  gail_batch_size: 128
  gail_epoch: 5
- lr_disc: 1.0e-3
+ lr_disc: 3.0e-5
+ num_trajectories: 4
  gradient_penalty: False
 
  eps: 1.0e-5
@@ -21,21 +22,21 @@
  num_steps: 2048
 
  policy_epoch: 20
- vf_epoch: 10
+ vf_epoch: 20
 
  num_mini_batch: 32
  clip_param: 0.2
  clip_importance_ratio: False
  
- logging: False
- summary: False
+ logging: True
+ summary: True
  log_interval: 1
  save_interval: 100
  eval_interval: 2
  
- num_env_steps: 1.0e+4
+ num_env_steps: 3.0e+6
  env_name: 'HalfCheetah-v2'
- logging_dir: '/home/temp_store/Ahmed_Agha/Experiments/'
+ logging_dir: '/home/temp_store/Ahmed_Agha/log_27.07/gail_trl_v20/'
  log_dir: '/home/temp_store/Ahmed_Agha/gym'
  no_cuda: True
  use_proper_time_limits: True
@@ -51,7 +52,7 @@
  use_projection: True
  lr_policy: 3.0e-4
  lr_value: 3.0e-4
- proj_type: 'w2'
+ proj_type: 'kl'
  mean_bound: 0.03
  cov_bound: 0.005
  trust_region_coeff: 8.0
