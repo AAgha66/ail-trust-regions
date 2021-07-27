@@ -2,12 +2,12 @@ import argparse
 import os
 # workaround to unpickle olf model files
 import sys
-from a2c_ppo_acktr.arguments import get_args_dict
+from utils.arguments import get_args_dict
 import torch
 import numpy as np
-from a2c_ppo_acktr.envs import make_vec_envs
-from a2c_ppo_acktr.utils import get_render_func, get_vec_normalize
-from a2c_ppo_acktr import utils
+from utils.envs import make_vec_envs
+from utils.utils import get_render_func, get_vec_normalize
+import utils.utils
 
 sys.path.append('a2c_ppo_acktr')
 
