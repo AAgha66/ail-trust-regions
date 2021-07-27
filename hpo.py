@@ -32,9 +32,8 @@ def get_args(trial, config):
 
 def objective_wrapper(trial, config):
     args_dict = get_args(trial, config)
-    seeds = [2, 12, 22, 32]
+    seeds = [0, 1, 2]
     dicts = []
-    N = 10
 
     for seed in seeds:
         tmp = args_dict.copy()
