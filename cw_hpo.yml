@@ -16,19 +16,19 @@ partition: "single"  # "single" for cpu, "gpu_4" or gpu_8" for gpu
 job-name: "hpo_jl" #this will be the experiment's name in slurm
 num_parallel_jobs: 100 # max number of jobs executed in parallel
 ntasks: 1   #  leave that like it is
-cpus-per-task: 4   # there are 10 cores for each GPU
+cpus-per-task: 4   # there are 10 cores for each GPU 
 mem-per-cpu: 2250  # in MB
 time: 3000   # in minutes
 
 
-#experiment_copy_auto_dst: "/home/kit/anthropomatik/kn6273/Repos/autodst/16.07/"
-#experiment_copy_src: "."
+experiment_copy_auto_dst: "/home/kit/anthropomatik/kn6273/Repos/autodst/hpo_trlBatchsize/"
+experiment_copy_src: "."
 
 ---
 # Experiment
 name: "hpo_jl"
 # Required: Can also be set in DEFAULT
-path: "/home/kit/anthropomatik/kn6273/Repos/logs/hpo_16.07_jl/"   # location to save results in
+path: "/home/kit/anthropomatik/kn6273/Repos/logs/hpo_trlBatchsize/"   # location to save results in
 repetitions: 1  # number of times one set of parameters is run
 
 # Experiment Parameters

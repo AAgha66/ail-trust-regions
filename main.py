@@ -39,7 +39,7 @@ def main(config=None, args_dict=None):
     fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards', 'value_loss_epoch',
               'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'entropy_mean', 'entropy_diff_mean']
 
-    fnames_grads = ['norm_grad_policy', 'norm_grad_disc']
+    fnames_grads = ['norm_grad_disc']
 
     csv_writer = None
     csv_writer_grads = None
@@ -74,7 +74,7 @@ def main(config=None, args_dict=None):
         clip_param=args_dict['clip_param'],
         policy_epoch=args_dict['policy_epoch'],
         vf_epoch=args_dict['vf_epoch'],
-        num_mini_batch=args_dict['num_mini_batch'],
+        mini_batch_size=args_dict['mini_batch_size'],
         value_loss_coef=args_dict['value_loss_coef'],
         entropy_coef=args_dict['entropy_coef'],
         lr_value=args_dict['lr_value'],
@@ -96,13 +96,13 @@ def main(config=None, args_dict=None):
         assert len(envs.observation_space.shape) == 1
         discr = gail.Discriminator(
             envs.observation_space.shape[0] + envs.action_space.shape[0], 100,
-            device, args_dict['gradient_penalty'])
+            device, args_dict['gradient_penalty'], lr_disc=args_dict['lr_disc'])
         file_name = os.path.join(
             args_dict['gail_experts_dir'], "trajs_{}.pt".format(
                 args_dict['env_name'].split('-')[0].lower()))
 
         expert_dataset = gail.ExpertDataset(
-            file_name, num_trajectories=4, subsample_frequency=20)
+            file_name, num_trajectories=args_dict['num_trajectories'], subsample_frequency=20)
         drop_last = len(expert_dataset) > args_dict['gail_batch_size']
         gail_train_loader = torch.utils.data.DataLoader(
             dataset=expert_dataset,
@@ -126,12 +126,8 @@ def main(config=None, args_dict=None):
     if args_dict['summary']:
         writer = SummaryWriter(log_dir_ + '/summary')
     # 2 variables needed for tracking the gradients values in the tensorboard
-    policy_iters = 0
     gail_iters = 0
-
-    N = 15
-    cumsum, moving_aves = [0], []
-    moving_avg_counter = 1
+    list_eval_rewards = []
     for j in range(num_updates):
 
         if args_dict['use_linear_lr_decay']:
@@ -164,6 +160,8 @@ def main(config=None, args_dict=None):
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
         gail_norm_grad = []
+        acc_policy = []
+        acc_expert = []
         if args_dict['use_gail']:
             if j >= 10:
                 envs.venv.eval()
@@ -172,9 +170,13 @@ def main(config=None, args_dict=None):
             if j < 10:
                 gail_epoch = 100  # Warm up
             for _ in range(gail_epoch):
-                _, gail_norm_grad_epoch = discr.update(gail_train_loader, rollouts,
-                                                       utils.utils.get_vec_normalize(envs)._obfilt)
+                _, gail_norm_grad_epoch, acc_policy_epoch, acc_expert_epoch = \
+                    discr.update(gail_train_loader, rollouts, 
+                    utils.utils.get_vec_normalize(envs)._obfilt)
+
                 gail_norm_grad.extend(gail_norm_grad_epoch)
+                acc_policy.extend(acc_policy_epoch)
+                acc_expert.extend(acc_expert_epoch)
 
             for step in range(args_dict['num_steps']):
                 rollouts.rewards[step] = discr.predict_reward(
@@ -224,13 +226,8 @@ def main(config=None, args_dict=None):
                                                  args_dict['num_processes'], args_dict['log_dir'],
                                                  args_dict['norm_obs'], args_dict['norm_reward'], args_dict['clip_obs'],
                                                  args_dict['clip_reward'], device)
-            cumsum.append(cumsum[moving_avg_counter - 1] + mean_eval_episode_rewards)
-            if moving_avg_counter >= N:
-                moving_ave = (cumsum[moving_avg_counter] - cumsum[moving_avg_counter - N]) / N
-                # can do stuff with moving_ave here
-                moving_aves.append(moving_ave)
-            moving_avg_counter += 1
-
+            list_eval_rewards.append(mean_eval_episode_rewards)                                                 
+            print("Evaluation: " + str(mean_eval_episode_rewards))
             if args_dict['summary']:
                 writer.add_scalar('mean_eval_episode_rewards',
                                   mean_eval_episode_rewards, total_num_steps)
@@ -257,18 +254,15 @@ def main(config=None, args_dict=None):
                                  'entropy_mean': metrics['entropy'].item(),
                                  'entropy_diff_mean': metrics['entropy_diff'].item()})
 
-            for i, _ in enumerate(metrics['norm_grad_policy']):
-                csv_writer_grads.writerow({'norm_grad_policy': metrics['norm_grad_policy'][i].item()})
-                if args_dict['summary']:
-                    writer.add_scalar('norm_grad_policy',
-                                      metrics['norm_grad_policy'][i], policy_iters)
-                policy_iters += 1
-
             for i, _ in enumerate(gail_norm_grad):
                 csv_writer_grads.writerow({'norm_grad_disc': gail_norm_grad[i].item()})
                 if args_dict['summary']:
                     writer.add_scalar('norm_grad_disc',
                                       gail_norm_grad[i], gail_iters)
+                    writer.add_scalar('acc_policy',
+                                      acc_policy[i], gail_iters)
+                    writer.add_scalar('acc_expert',
+                                      acc_expert[i], gail_iters)
                 gail_iters += 1
             f.flush()
 
@@ -276,7 +270,7 @@ def main(config=None, args_dict=None):
         writer.close()
     print('Finished Training')
 
-    return moving_aves
+    return list_eval_rewards.mean()
 
 
 if __name__ == "__main__":
