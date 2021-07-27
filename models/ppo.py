@@ -12,7 +12,7 @@ class PPO():
                  clip_param,
                  policy_epoch,
                  vf_epoch,
-                 num_mini_batch,
+                 mini_batch_size,
                  value_loss_coef,
                  entropy_coef,
                  lr_policy=None,
@@ -33,7 +33,7 @@ class PPO():
         self.clip_param = clip_param
         self.policy_epoch = policy_epoch
         self.vf_epoch = vf_epoch
-        self.num_mini_batch = num_mini_batch
+        self.mini_batch_size = mini_batch_size
 
         self.value_loss_coef = value_loss_coef
         self.entropy_coef = entropy_coef
@@ -64,19 +64,19 @@ class PPO():
 
         self.global_steps = 0
 
-    def policy_update(self, advantages, rollouts):
+    def train(self, advantages, rollouts):
         action_loss_epoch = 0
         trust_region_loss_epoch = 0
-        norm_grad = []
+        value_loss_epoch = 0
 
         for e in range(self.policy_epoch):
             data_generator = rollouts.feed_forward_generator(
-                advantages, mini_batch_size=self.num_mini_batch)
+                advantages, mini_batch_size=self.mini_batch_size)
 
             for sample in data_generator:
-                obs_batch, actions_batch, _, _, _, adv_targ, old_means, old_stddevs = sample
+                obs_batch, actions_batch, _, value_preds_batch, return_batch, adv_targ, old_means, old_stddevs = sample
                 # Reshape to do in a single forward pass for all steps
-                _, dist = self.actor_critic.evaluate_actions(obs_batch)
+                values, dist = self.actor_critic.evaluate_actions(obs_batch)
 
                 old_dist = FixedNormal(old_means, old_stddevs)
                 # set initial entropy value in first step to calculate appropriate entropy decay
@@ -109,48 +109,10 @@ class PPO():
                 if self.proj is not None:
                     trust_region_loss = self.proj.get_trust_region_loss(dist, new_dist)
 
-                self.optimizer_policy.zero_grad()
-
                 loss = action_loss - dist_entropy * self.entropy_coef
-                # calculating gradient of loss relative to the policy
-                ones = torch.ones(loss.size()).to(loss.device)
-                grad = autograd.grad(
-                    outputs=loss,
-                    inputs=dist.mean,
-                    grad_outputs=ones,
-                    create_graph=True,
-                    retain_graph=True,
-                    only_inputs=True)[0]
-                norm_grad_batch = torch.mean(torch.norm(grad, p=2, dim=1))
-                norm_grad.append(torch.unsqueeze(norm_grad_batch, dim=0))
-
                 if self.proj is not None:
                     loss += trust_region_loss
-                loss.backward()
-
-                if self.gradient_clipping:
-                    nn.utils.clip_grad_norm_(self.policy_params,
-                                             self.max_grad_norm)
-
-                self.optimizer_policy.step()
-                action_loss_epoch += action_loss.item()
-                if trust_region_loss:
-                    trust_region_loss_epoch += trust_region_loss.item()
-
-        return action_loss_epoch, trust_region_loss_epoch, norm_grad
-
-    def value_update(self, advantages, rollouts):
-        value_loss_epoch = 0
-
-        for e in range(self.vf_epoch):
-            data_generator = rollouts.feed_forward_generator(
-                advantages, mini_batch_size=self.num_mini_batch)
-
-            for sample in data_generator:
-                obs_batch, _, value_preds_batch, return_batch, _, _, _, _ = sample
-                # Reshape to do in a single forward pass for all steps
-                values, _ = self.actor_critic.evaluate_actions(obs_batch)
-
+                
                 if self.use_clipped_value_loss:
                     value_pred_clipped = value_preds_batch + \
                                          (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
@@ -162,13 +124,26 @@ class PPO():
                 else:
                     value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
+                self.optimizer_policy.zero_grad()
                 self.optimizer_vf.zero_grad()
+
+                loss.backward()
                 value_loss.backward()
+
+                if self.gradient_clipping:
+                    nn.utils.clip_grad_norm_(self.actor_critic.parameters(),
+                                             self.max_grad_norm)
+
+                self.optimizer_policy.step()
                 self.optimizer_vf.step()
+                
+                value_loss_epoch += value_loss.item()                
+                action_loss_epoch += action_loss.item()
+                
+                if trust_region_loss:
+                    trust_region_loss_epoch += trust_region_loss.item()
 
-                value_loss_epoch += value_loss.item()
-
-        return value_loss_epoch
+        return action_loss_epoch, value_loss_epoch, trust_region_loss_epoch
 
     def update(self, rollouts):
         self.global_steps += 1
@@ -177,9 +152,8 @@ class PPO():
         advantages = (advantages - advantages.mean()) / (
                 advantages.std() + 1e-5)
 
-        value_loss_epoch = self.value_update(advantages=advantages, rollouts=rollouts)
-        action_loss_epoch, trust_region_loss_epoch, norm_grad_policy = \
-            self.policy_update(advantages=advantages, rollouts=rollouts)
+        action_loss_epoch, value_loss_epoch, trust_region_loss_epoch = \
+            self.train(advantages=advantages, rollouts=rollouts)
 
         # TODO: Find a nicer way to get all obs and old means and stddev
         metrics = None
@@ -193,12 +167,11 @@ class PPO():
             old_dist = FixedNormal(old_means, old_stddevs)
             metrics = compute_metrics(dist, old_dist)
 
-        num_updates_policy = self.policy_epoch * self.num_mini_batch
-        num_updates_value = self.vf_epoch * self.num_mini_batch
+        num_updates_policy = self.policy_epoch * (2048 / self.mini_batch_size)
+        num_updates_value = self.vf_epoch * (2048 / self.mini_batch_size)
 
         metrics['value_loss_epoch'] = value_loss_epoch / num_updates_value
         metrics['action_loss_epoch'] = action_loss_epoch / num_updates_policy
         metrics['trust_region_loss_epoch'] = trust_region_loss_epoch / num_updates_policy
-        metrics['norm_grad_policy'] = norm_grad_policy
         metrics['advantages'] = advantages
         return metrics

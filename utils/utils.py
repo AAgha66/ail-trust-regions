@@ -109,7 +109,7 @@ def get_exp_name(params):
                f"{'g_clip' + str(params['gradient_clipping']) + '-'}" \
                f"{'max_grad' + str(params['max_grad_norm']) + '-'}" \
                f"{'s' + str(params['seed']) + '-'}" \
-               f"{'batch_size' + str(params['num_mini_batch']) + '-'}" \
+               f"{'batch_size' + str(params['mini_batch_size']) + '-'}" \
                f"{'clip_ir' + str(params['clip_importance_ratio']) + '-'}" \
                f"{'proj' + str(params['use_projection']) + '-'}" \
                f"{'p_type' + str(params['proj_type']) + '-'}" \

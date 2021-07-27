@@ -39,7 +39,7 @@ def main(config=None, args_dict=None):
     fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards', 'value_loss_epoch',
               'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'entropy_mean', 'entropy_diff_mean']
 
-    fnames_grads = ['norm_grad_policy', 'norm_grad_disc']
+    fnames_grads = ['norm_grad_disc']
 
     csv_writer = None
     csv_writer_grads = None
@@ -74,7 +74,7 @@ def main(config=None, args_dict=None):
         clip_param=args_dict['clip_param'],
         policy_epoch=args_dict['policy_epoch'],
         vf_epoch=args_dict['vf_epoch'],
-        num_mini_batch=args_dict['num_mini_batch'],
+        mini_batch_size=args_dict['mini_batch_size'],
         value_loss_coef=args_dict['value_loss_coef'],
         entropy_coef=args_dict['entropy_coef'],
         lr_value=args_dict['lr_value'],
@@ -126,7 +126,6 @@ def main(config=None, args_dict=None):
     if args_dict['summary']:
         writer = SummaryWriter(log_dir_ + '/summary')
     # 2 variables needed for tracking the gradients values in the tensorboard
-    policy_iters = 0
     gail_iters = 0
 
     N = 15
@@ -175,7 +174,8 @@ def main(config=None, args_dict=None):
                 gail_epoch = 100  # Warm up
             for _ in range(gail_epoch):
                 _, gail_norm_grad_epoch, acc_policy_epoch, acc_expert_epoch = \
-                    discr.update(gail_train_loader, rollouts, utils.utils.get_vec_normalize(envs)._obfilt)
+                    discr.update(gail_train_loader, rollouts, 
+                    utils.utils.get_vec_normalize(envs)._obfilt)
 
                 gail_norm_grad.extend(gail_norm_grad_epoch)
                 acc_policy.extend(acc_policy_epoch)
@@ -261,17 +261,6 @@ def main(config=None, args_dict=None):
                                  'kl_mean': metrics['kl'].item(),
                                  'entropy_mean': metrics['entropy'].item(),
                                  'entropy_diff_mean': metrics['entropy_diff'].item()})
-
-            for i, _ in enumerate(metrics['norm_grad_policy']):
-                csv_writer_grads.writerow({'norm_grad_policy': metrics['norm_grad_policy'][i].item()})
-                if args_dict['summary']:
-                    writer.add_scalar('norm_grad_policy',
-                                      metrics['norm_grad_policy'][i], policy_iters)
-                    writer.add_scalar('norm_grad_policy',
-                                      metrics['norm_grad_policy'][i], policy_iters)
-                    writer.add_scalar('norm_grad_policy',
-                                      metrics['norm_grad_policy'][i], policy_iters)
-                policy_iters += 1
 
             for i, _ in enumerate(gail_norm_grad):
                 csv_writer_grads.writerow({'norm_grad_disc': gail_norm_grad[i].item()})
