@@ -15,18 +15,17 @@ def get_args(trial, config):
     args_dict['summary'] = config.params['summary']
     args_dict['gradient_penalty'] = config.params['gradient_penalty']
 
-    args_dict['lr_disc'] = trial.suggest_float("lr_disc", 1e-5, 1e-3, log=True)
-    args_dict['lr_policy'] = trial.suggest_float("lr_policy", 1e-5, 1e-3, log=True)
-    args_dict['lr_value'] = trial.suggest_float("lr_value", 1e-5, 1e-3, log=True)
-
+    args_dict['lr_disc'] = trial.suggest_categorical("lr_disc", [3e-6, 1.0e-5, 3.0e-5, 1e-4])    
+    args_dict['lr_policy'] = trial.suggest_categorical("lr_policy", [3e-5, 1.0e-4, 3.0e-4])
+    args_dict['lr_value'] = trial.suggest_categorical("lr_value", [3e-5, 1.0e-4, 3.0e-4])
     args_dict['lambda_gae'] = trial.suggest_categorical("lambda_gae", [0.95, 0.96, 0.97, 0.98])
-    args_dict['gamma'] = trial.suggest_categorical("gamma", [0.9, 0.95, 0.99, 0.995, 0.999])
+    args_dict['gamma'] = trial.suggest_categorical("gamma", [0.97, 0.99, 0.997])
 
     if config.params['use_proj']:
         args_dict['proj_type'] = config.params['proj_type']
         args_dict['cov_bound'] = trial.suggest_float("cov_bound", 1e-5, 1e-2, log=True)
         args_dict['mean_bound'] = trial.suggest_float("mean_bound", 1e-4, 1e-1, log=True)
-        args_dict['trust_region_coeff'] = trial.suggest_int("trust_region_coeff", 1, 15, step=1)
+        args_dict['trust_region_coeff'] = trial.suggest_int("trust_region_coeff", 4, 16, step=4)
 
     return args_dict
 
