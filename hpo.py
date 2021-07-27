@@ -13,6 +13,7 @@ def get_args(trial, config):
 
     args_dict['logging'] = config.params['logging']
     args_dict['summary'] = config.params['summary']
+    args_dict['logging_dir'] = config.params['logging_dir']
     args_dict['gradient_penalty'] = config.params['gradient_penalty']
 
     args_dict['lr_disc'] = trial.suggest_categorical("lr_disc", [3e-6, 1.0e-5, 3.0e-5, 1e-4])    
