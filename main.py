@@ -96,7 +96,7 @@ def main(config=None, args_dict=None):
         assert len(envs.observation_space.shape) == 1
         discr = gail.Discriminator(
             envs.observation_space.shape[0] + envs.action_space.shape[0], 100,
-            device, args_dict['gradient_penalty'])
+            device, args_dict['gradient_penalty'], lr_disc=args_dict['lr_disc'])
         file_name = os.path.join(
             args_dict['gail_experts_dir'], "trajs_{}.pt".format(
                 args_dict['env_name'].split('-')[0].lower()))

@@ -9,11 +9,11 @@ from stable_baselines3.common.running_mean_std import RunningMeanStd
 
 
 class Discriminator(nn.Module):
-    def __init__(self, input_dim, hidden_dim, device, gradient_penalty):
+    def __init__(self, input_dim, hidden_dim, device, gradient_penalty, lr_disc):
         super(Discriminator, self).__init__()
 
         self.device = device
-
+         
         self.trunk = nn.Sequential(
             nn.Linear(input_dim, hidden_dim), nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim), nn.Tanh(),
@@ -21,7 +21,7 @@ class Discriminator(nn.Module):
 
         self.trunk.train()
 
-        self.optimizer = torch.optim.Adam(self.trunk.parameters())
+        self.optimizer = torch.optim.Adam(self.trunk.parameters(), lr=lr_disc)
 
         self.returns = None
         self.ret_rms = RunningMeanStd(shape=())
