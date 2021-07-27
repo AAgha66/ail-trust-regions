@@ -127,10 +127,7 @@ def main(config=None, args_dict=None):
         writer = SummaryWriter(log_dir_ + '/summary')
     # 2 variables needed for tracking the gradients values in the tensorboard
     gail_iters = 0
-
-    N = 15
-    cumsum, moving_aves = [0], []
-    moving_avg_counter = 1
+    list_eval_rewards = []
     for j in range(num_updates):
 
         if args_dict['use_linear_lr_decay']:
@@ -229,12 +226,7 @@ def main(config=None, args_dict=None):
                                                  args_dict['num_processes'], args_dict['log_dir'],
                                                  args_dict['norm_obs'], args_dict['norm_reward'], args_dict['clip_obs'],
                                                  args_dict['clip_reward'], device)
-            cumsum.append(cumsum[moving_avg_counter - 1] + mean_eval_episode_rewards)
-            if moving_avg_counter >= N:
-                moving_ave = (cumsum[moving_avg_counter] - cumsum[moving_avg_counter - N]) / N
-                # can do stuff with moving_ave here
-                moving_aves.append(moving_ave)
-            moving_avg_counter += 1
+            list_eval_rewards.append(mean_eval_episode_rewards)                                                 
             print("Evaluation: " + str(mean_eval_episode_rewards))
             if args_dict['summary']:
                 writer.add_scalar('mean_eval_episode_rewards',
@@ -278,7 +270,7 @@ def main(config=None, args_dict=None):
         writer.close()
     print('Finished Training')
 
-    return moving_aves
+    return list_eval_rewards.mean()
 
 
 if __name__ == "__main__":
