@@ -24,7 +24,7 @@
  policy_epoch: 20
  vf_epoch: 20
 
- num_mini_batch: 32
+ mini_batch_size: 32
  clip_param: 0.2
  clip_importance_ratio: False
  
