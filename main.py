@@ -270,7 +270,7 @@ def main(config=None, args_dict=None):
         writer.close()
     print('Finished Training')
 
-    return list_eval_rewards.mean()
+    return sum(list_eval_rewards) / len(list_eval_rewards)
 
 
 if __name__ == "__main__":
