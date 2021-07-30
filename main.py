@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 import utils.utils
-from models import gail, ppo
+from models import gail, ppo, trpo
 from utils.arguments import get_args_dict
 from utils.envs import make_vec_envs
 from models.model import Policy
@@ -69,27 +69,47 @@ def main(config=None, args_dict=None):
         envs.action_space)
     actor_critic.to(device)
 
-    agent = ppo.PPO(
-        actor_critic=actor_critic,
-        clip_param=args_dict['clip_param'],
-        policy_epoch=args_dict['policy_epoch'],
-        vf_epoch=args_dict['vf_epoch'],
-        mini_batch_size=args_dict['mini_batch_size'],
-        value_loss_coef=args_dict['value_loss_coef'],
-        entropy_coef=args_dict['entropy_coef'],
-        num_steps=args_dict['num_steps'],
-        lr_value=args_dict['lr_value'],
-        lr_policy=args_dict['lr_policy'],
-        eps=args_dict['eps'],
-        proj_type=args_dict['proj_type'],
-        max_grad_norm=args_dict['max_grad_norm'],
-        use_clipped_value_loss=args_dict['use_clipped_value_loss'],
-        use_projection=args_dict['use_projection'],
-        clip_importance_ratio=args_dict['clip_importance_ratio'],
-        gradient_clipping=args_dict['gradient_clipping'],
-        mean_bound=args_dict['mean_bound'],
-        cov_bound=args_dict['cov_bound'],
-        trust_region_coeff=args_dict['trust_region_coeff'])
+    if args_dict['algo'] == 'ppo':
+        agent = ppo.PPO(
+            actor_critic=actor_critic,
+            clip_param=args_dict['clip_param'],
+            policy_epoch=args_dict['policy_epoch'],
+            vf_epoch=args_dict['vf_epoch'],
+            mini_batch_size=args_dict['mini_batch_size'],
+            value_loss_coef=args_dict['value_loss_coef'],
+            entropy_coef=args_dict['entropy_coef'],
+            num_steps=args_dict['num_steps'],
+            lr_value=args_dict['lr_value'],
+            lr_policy=args_dict['lr_policy'],
+            eps=args_dict['eps'],
+            proj_type=args_dict['proj_type'],
+            max_grad_norm=args_dict['max_grad_norm'],
+            use_clipped_value_loss=args_dict['use_clipped_value_loss'],
+            use_projection=args_dict['use_projection'],
+            clip_importance_ratio=args_dict['clip_importance_ratio'],
+            gradient_clipping=args_dict['gradient_clipping'],
+            mean_bound=args_dict['mean_bound'],
+            cov_bound=args_dict['cov_bound'],
+            trust_region_coeff=args_dict['trust_region_coeff'])
+    elif args_dict['algo'] == 'trpo':
+        agent = trpo.TRPO(actor_critic=actor_critic,
+                          vf_epoch=args_dict['vf_epoch'],
+                          lr_value=args_dict['lr_value'],
+                          eps=args_dict['eps'],
+                          action_space=envs.action_space,
+                          obs_space=envs.observation_space,
+                          num_steps=args_dict['num_steps'],
+                          max_kl=args_dict['max_kl'],
+                          cg_damping=args_dict['cg_damping'],
+                          cg_max_iters=args_dict['cg_max_iters'],
+                          line_search_coef=args_dict['line_search_coef'],
+                          line_search_max_iter=args_dict['line_search_max_iter'],
+                          line_search_accept_ratio=args_dict['line_search_accept_ratio'],
+                          batch_size=args_dict['mini_batch_size'])
+    else:
+        raise NotImplementedError("Policy optimization method not implemented!")
+
+
 
     discr = None
     gail_train_loader = None
