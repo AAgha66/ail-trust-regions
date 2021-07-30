@@ -15,6 +15,7 @@ class PPO():
                  mini_batch_size,
                  value_loss_coef,
                  entropy_coef,
+                 num_steps,
                  lr_policy=None,
                  lr_value=None,
                  eps=None,
@@ -46,6 +47,7 @@ class PPO():
         self.mean_bound = mean_bound
         self.cov_bound = cov_bound
         self.trust_region_coeff = trust_region_coeff
+        self.num_steps = num_steps
 
         self.proj = None
         if use_projection:
@@ -159,7 +161,7 @@ class PPO():
         # TODO: Find a nicer way to get all obs and old means and stddev
         metrics = None
         data_generator_metric = rollouts.feed_forward_generator(
-            advantages, mini_batch_size=2048)
+            advantages, mini_batch_size=self.num_steps)
         for set in data_generator_metric:
             obs_batch, _, _, _, _, _, old_means, old_stddevs = set
             # Reshape to do in a single forward pass for all steps
@@ -167,8 +169,8 @@ class PPO():
             old_dist = FixedNormal(old_means, old_stddevs)
             metrics = compute_metrics(dist, old_dist)
 
-        num_updates_policy = self.policy_epoch * (2048 / self.mini_batch_size)
-        num_updates_value = self.vf_epoch * (2048 / self.mini_batch_size)
+        num_updates_policy = self.policy_epoch * (self.num_steps / self.mini_batch_size)
+        num_updates_value = self.vf_epoch * (self.num_steps / self.mini_batch_size)
 
         metrics['value_loss_epoch'] = value_loss_epoch / num_updates_value
         metrics['action_loss_epoch'] = action_loss_epoch / num_updates_policy

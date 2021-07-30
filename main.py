@@ -77,6 +77,7 @@ def main(config=None, args_dict=None):
         mini_batch_size=args_dict['mini_batch_size'],
         value_loss_coef=args_dict['value_loss_coef'],
         entropy_coef=args_dict['entropy_coef'],
+        num_steps=args_dict['num_steps'],
         lr_value=args_dict['lr_value'],
         lr_policy=args_dict['lr_policy'],
         eps=args_dict['eps'],
