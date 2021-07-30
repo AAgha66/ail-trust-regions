@@ -7,19 +7,25 @@ from models.distributions import FixedNormal
 class TRPO():
     def __init__(self,
                  actor_critic,
-                 policy_epoch,
                  vf_epoch,
                  lr_value,
                  eps,
-                 batch_size,
                  action_space,
-                 obs_space):
+                 obs_space,
+                 num_steps=4096,
+                 max_kl=0.01,
+                 cg_damping=1e-3,
+                 cg_max_iters=10,
+                 line_search_coef=0.9,
+                 line_search_max_iter=10,
+                 line_search_accept_ratio=0.1,
+                 batch_size=64):
 
         self.actor_critic = actor_critic
 
-        self.policy_epoch = policy_epoch
         self.vf_epoch = vf_epoch
         self.batch_size = batch_size
+        self.num_steps = num_steps
 
         self.policy_params = list(actor_critic.base.actor.parameters()) + list(actor_critic.dist.parameters())
         self.vf_params = list(actor_critic.base.critic.parameters())
@@ -27,7 +33,12 @@ class TRPO():
         self.optimizer_vf = optim.Adam(self.vf_params, lr=lr_value, eps=eps)
 
         self.global_steps = 0
-        self.max_kl = 0.04
+        self.max_kl = max_kl
+        self.cg_damping = cg_damping
+        self.cg_max_iters = cg_max_iters
+        self.line_search_coef = line_search_coef
+        self.line_search_max_iter = line_search_max_iter
+        self.line_search_accept_ratio = line_search_accept_ratio
 
         self.action_space = action_space
         self.obs_space = obs_space
@@ -100,7 +111,7 @@ class TRPO():
         kl_hessian_p = torch.autograd.grad(kl_grad_p, self.policy_params)
         kl_hessian_p = self.flat_hessian(kl_hessian_p)
 
-        return kl_hessian_p + 0.1 * p
+        return kl_hessian_p + self.cg_damping * p
 
     # from openai baseline code
     # https://github.com/openai/baselines/blob/master/baselines/common/cg.py
@@ -138,7 +149,7 @@ class TRPO():
         # ----------------------------
         # step 3: get gradient of loss and hessian of kl
         data_generator_policy = rollouts.feed_forward_generator(
-            advantages, mini_batch_size=4096)
+            advantages, mini_batch_size=self.num_steps)
         for batch in data_generator_policy:
             obs_batch, actions_batch, \
             value_preds_batch, return_batch, _, adv_targ, _, _ = batch
@@ -152,7 +163,7 @@ class TRPO():
             loss_grad = torch.autograd.grad(loss, self.policy_params)
             loss_grad = self.flat_grad(loss_grad)
 
-            step_dir = self.conjugate_gradient(obs_batch, loss_grad.data, nsteps=10)
+            step_dir = self.conjugate_gradient(obs_batch, loss_grad.data, nsteps=self.cg_max_iters)
             loss = loss.data.numpy()
 
             # ----------------------------
@@ -177,7 +188,7 @@ class TRPO():
             flag = False
             fraction = 1.0
 
-            for i in range(10):
+            for i in range(self.line_search_max_iter):
                 new_params = params + fraction * full_step
                 self.update_model(self.policy_params, new_params)
 
@@ -203,11 +214,11 @@ class TRPO():
                       .format(kl.data.numpy(), loss_improve, expected_improve[0], i))"""
 
                 # see https: // en.wikipedia.org / wiki / Backtracking_line_search
-                if kl < self.max_kl and (loss_improve / expected_improve) > 0.1:
+                if kl < self.max_kl and (loss_improve / expected_improve) > self.line_search_accept_ratio:
                     flag = True
                     break
 
-                fraction *= 0.9
+                fraction *= self.line_search_coef
 
             if not flag:
                 params = self.flat_params(old_policy_params)
