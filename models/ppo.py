@@ -74,7 +74,7 @@ class PPO():
                 advantages, mini_batch_size=self.mini_batch_size)
 
             for sample in data_generator:
-                obs_batch, actions_batch, _, value_preds_batch, return_batch, adv_targ, old_means, old_stddevs = sample
+                obs_batch, actions_batch, value_preds_batch, return_batch, _, adv_targ, old_means, old_stddevs = sample
                 # Reshape to do in a single forward pass for all steps
                 values, dist = self.actor_critic.evaluate_actions(obs_batch)
 
@@ -125,18 +125,19 @@ class PPO():
                     value_loss = 0.5 * (return_batch - values).pow(2).mean()
 
                 self.optimizer_policy.zero_grad()
-                self.optimizer_vf.zero_grad()
-
                 loss.backward()
-                value_loss.backward()
-
                 if self.gradient_clipping:
-                    nn.utils.clip_grad_norm_(self.actor_critic.parameters(),
+                    nn.utils.clip_grad_norm_(self.policy_params,
                                              self.max_grad_norm)
-
                 self.optimizer_policy.step()
+
+                self.optimizer_vf.zero_grad()                                
+                value_loss.backward()
+                if self.gradient_clipping:
+                    nn.utils.clip_grad_norm_(self.vf_params,
+                                             self.max_grad_norm)
                 self.optimizer_vf.step()
-                
+
                 value_loss_epoch += value_loss.item()                
                 action_loss_epoch += action_loss.item()
                 
