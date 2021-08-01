@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from utils.projection_utils import compute_metrics, gaussian_kl
-#from projections.projection_factory import get_projection_layer
+from projections.projection_factory import get_projection_layer
 from models.distributions import FixedNormal
 
-class PPO():
+
+class PPO:
     def __init__(self,
                  actor_critic,
                  clip_param,
@@ -178,8 +179,8 @@ class PPO():
         metrics = None
         data_generator_metric = rollouts.feed_forward_generator(
             advantages, mini_batch_size=self.num_steps)
-        for set in data_generator_metric:
-            obs_batch, _, _, _, _, _, old_means, old_stddevs = set
+        for batch in data_generator_metric:
+            obs_batch, _, _, _, _, _, old_means, old_stddevs = batch
             # Reshape to do in a single forward pass for all steps
             _, dist = self.actor_critic.evaluate_actions(obs_batch)
             old_dist = FixedNormal(old_means, old_stddevs)
