@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from utils.projection_utils import compute_metrics
+from utils.projection_utils import compute_metrics, gaussian_kl
 from projections.projection_factory import get_projection_layer
 from models.distributions import FixedNormal
-from torch import autograd
 
 class PPO():
     def __init__(self,
@@ -16,6 +15,9 @@ class PPO():
                  value_loss_coef,
                  entropy_coef,
                  num_steps,
+                 use_kl_penalty=False,
+                 beta=0.5,
+                 kl_target=0.01,
                  lr_policy=None,
                  lr_value=None,
                  eps=None,
@@ -28,6 +30,9 @@ class PPO():
                  mean_bound=0.03,
                  cov_bound=0.001,
                  trust_region_coeff=8.0):
+
+        assert not (use_kl_penalty and use_projection
+                    and clip_importance_ratio)
 
         self.actor_critic = actor_critic
 
@@ -48,6 +53,10 @@ class PPO():
         self.cov_bound = cov_bound
         self.trust_region_coeff = trust_region_coeff
         self.num_steps = num_steps
+
+        self.beta = beta
+        self.kl_target = kl_target
+        self.use_kl_penalty = use_kl_penalty
 
         self.proj = None
         if use_projection:
@@ -94,6 +103,9 @@ class PPO():
                 action_log_probs = new_dist.log_probs(actions_batch)
                 dist_entropy = new_dist.entropy().mean()
 
+                maha_part, cov_part = gaussian_kl(old_dist, new_dist)
+                kl = (maha_part + cov_part)
+
                 ratio = torch.exp(action_log_probs -
                                   old_action_log_probs_batch)
 
@@ -103,6 +115,9 @@ class PPO():
                     surr2 = torch.clamp(ratio, 1.0 - self.clip_param,
                                         1.0 + self.clip_param) * adv_targ
                     action_loss = -torch.min(surr1, surr2).mean()
+                elif self.use_kl_penalty:
+                    surr1 -= self.beta * kl.unsqueeze(-1)
+                    action_loss = -surr1.mean()
                 else:
                     action_loss = -surr1.mean()
 
@@ -114,7 +129,7 @@ class PPO():
                 loss = action_loss - dist_entropy * self.entropy_coef
                 if self.proj is not None:
                     loss += trust_region_loss
-                
+
                 if self.use_clipped_value_loss:
                     value_pred_clipped = value_preds_batch + \
                                          (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
@@ -133,16 +148,16 @@ class PPO():
                                              self.max_grad_norm)
                 self.optimizer_policy.step()
 
-                self.optimizer_vf.zero_grad()                                
+                self.optimizer_vf.zero_grad()
                 value_loss.backward()
                 if self.gradient_clipping:
                     nn.utils.clip_grad_norm_(self.vf_params,
                                              self.max_grad_norm)
                 self.optimizer_vf.step()
 
-                value_loss_epoch += value_loss.item()                
+                value_loss_epoch += value_loss.item()
                 action_loss_epoch += action_loss.item()
-                
+
                 if trust_region_loss:
                     trust_region_loss_epoch += trust_region_loss.item()
 
@@ -167,10 +182,16 @@ class PPO():
             # Reshape to do in a single forward pass for all steps
             _, dist = self.actor_critic.evaluate_actions(obs_batch)
             old_dist = FixedNormal(old_means, old_stddevs)
-            metrics = compute_metrics(dist, old_dist)
+            metrics = compute_metrics(old_dist, dist)
 
         num_updates_policy = self.policy_epoch * (self.num_steps / self.mini_batch_size)
         num_updates_value = self.vf_epoch * (self.num_steps / self.mini_batch_size)
+
+        if self.use_kl_penalty:
+            if metrics['kl'] > self.kl_target * 1.5:
+                self.beta = self.beta * 2.0
+            elif metrics['kl'] < self.kl_target / 1.5:
+                self.beta = self.beta / 2.0
 
         metrics['value_loss_epoch'] = value_loss_epoch / num_updates_value
         metrics['action_loss_epoch'] = action_loss_epoch / num_updates_policy
