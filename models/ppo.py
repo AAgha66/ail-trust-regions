@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from utils.projection_utils import compute_metrics, gaussian_kl
-from projections.projection_factory import get_projection_layer
+#from projections.projection_factory import get_projection_layer
 from models.distributions import FixedNormal
 
 class PPO():
@@ -31,8 +31,9 @@ class PPO():
                  cov_bound=0.001,
                  trust_region_coeff=8.0):
 
-        assert not (use_kl_penalty and use_projection
-                    and clip_importance_ratio)
+        assert not ((use_kl_penalty and clip_importance_ratio) or
+                    (use_kl_penalty and use_projection) or
+                    (clip_importance_ratio and use_projection))
 
         self.actor_critic = actor_critic
 
