@@ -28,13 +28,13 @@
  clip_param: 0.2
  clip_importance_ratio: False
 
- logging: False
- summary: False
- save_model: False
+ logging: True
+ summary: True
+ save_model: True
  log_interval: 1
  eval_interval: 2
 
- num_env_steps: 1.0e+6
+ num_env_steps: 3.0e+6
  env_name: 'HalfCheetah-v2'
  logging_dir: '/home/temp_store/'
  log_dir: '/tmp/gym/'

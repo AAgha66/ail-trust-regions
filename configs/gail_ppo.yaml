@@ -28,9 +28,9 @@
  clip_param: 0.2
  clip_importance_ratio: True
 
- logging: False
- summary: False
- save_model: False
+ logging: True
+ summary: True
+ save_model: True
  log_interval: 1
  eval_interval: 2
 
@@ -48,6 +48,10 @@
  norm_reward: True
  clip_obs: 10.0
  clip_reward: 10.0
+
+ use_kl_penalty: False
+ start_beta: 1.0
+ kl_target: 0.01
 
  use_projection: False
  lr_policy: 3.0e-4
