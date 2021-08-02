@@ -1,6 +1,6 @@
 import torch
 import torch.optim as optim
-from utils.projection_utils import gaussian_kl
+from utils.projection_utils import compute_metrics, gaussian_kl
 from models.model import Policy
 from models.distributions import FixedNormal
 
@@ -19,12 +19,12 @@ class TRPO():
                  line_search_coef=0.9,
                  line_search_max_iter=10,
                  line_search_accept_ratio=0.1,
-                 batch_size=64):
+                 mini_batch_size=64):
 
         self.actor_critic = actor_critic
 
         self.vf_epoch = vf_epoch
-        self.batch_size = batch_size
+        self.mini_batch_size = mini_batch_size
         self.num_steps = num_steps
 
         self.policy_params = list(actor_critic.base.actor.parameters()) + list(actor_critic.dist.parameters())
@@ -78,7 +78,7 @@ class TRPO():
         value_loss_epoch = 0
         for e in range(self.vf_epoch):
             data_generator = rollouts.feed_forward_generator(
-                advantages, mini_batch_size=self.batch_size)
+                advantages, mini_batch_size=self.mini_batch_size)
 
             for sample in data_generator:
                 obs_batch, _, value_preds_batch, return_batch, _, _, _, _ = sample
@@ -92,7 +92,7 @@ class TRPO():
 
                 value_loss_epoch += value_loss.item()
 
-            return value_loss_epoch
+        return value_loss_epoch
 
     def fisher_vector_product(self, obs_batch, p):
         p.detach()
@@ -144,12 +144,13 @@ class TRPO():
 
         # ----------------------------
         # step 2: train critic several steps with respect to returns
-        self.train_critic(advantages=advantages, rollouts=rollouts)
-
+        value_loss_epoch = self.train_critic(advantages=advantages, rollouts=rollouts)
+        num_updates_value = self.vf_epoch * (self.num_steps / self.mini_batch_size)
         # ----------------------------
         # step 3: get gradient of loss and hessian of kl
         data_generator_policy = rollouts.feed_forward_generator(
             advantages, mini_batch_size=self.num_steps)
+        metrics = None
         for batch in data_generator_policy:
             obs_batch, actions_batch, \
             value_preds_batch, return_batch, _, adv_targ, _, _ = batch
@@ -188,6 +189,10 @@ class TRPO():
             flag = False
             fraction = 1.0
 
+            detached_old_dist = None
+            new_loss = None
+            new_dist = None
+
             for i in range(self.line_search_max_iter):
                 new_params = params + fraction * full_step
                 self.update_model(self.policy_params, new_params)
@@ -224,3 +229,12 @@ class TRPO():
                 params = self.flat_params(old_policy_params)
                 self.update_model(self.policy_params, params)
                 print('policy update does not impove the surrogate')
+
+            detached_new_dist = FixedNormal(new_dist.mean.detach(), new_dist.stddev.detach())
+            metrics = compute_metrics(detached_old_dist, detached_new_dist)
+
+            metrics['value_loss_epoch'] = value_loss_epoch / num_updates_value
+            metrics['action_loss_epoch'] = new_loss
+            metrics['trust_region_loss_epoch'] = 0
+            metrics['advantages'] = advantages
+        return metrics

@@ -108,7 +108,7 @@ def main(config=None, args_dict=None):
                           line_search_coef=args_dict['line_search_coef'],
                           line_search_max_iter=args_dict['line_search_max_iter'],
                           line_search_accept_ratio=args_dict['line_search_accept_ratio'],
-                          batch_size=args_dict['mini_batch_size'])
+                          mini_batch_size=args_dict['mini_batch_size'])
     else:
         raise NotImplementedError("Policy optimization method not implemented!")
 
@@ -149,11 +149,13 @@ def main(config=None, args_dict=None):
     writer = None
     if args_dict['summary']:
         writer = SummaryWriter(log_dir_ + '/summary')
-    # 2 variables needed for tracking the gradients values in the tensorboard
+
+    # variables needed for tracking the gradients values in the tensorboard
     gail_iters = 0
     list_eval_rewards = []
+    best_eval = -np.inf
+    metrics = None
     for j in range(num_updates):
-
         if args_dict['use_linear_lr_decay']:
             # decrease learning rate linearly
             utils.utils.update_linear_schedule(
@@ -178,7 +180,7 @@ def main(config=None, args_dict=None):
             bad_masks = torch.FloatTensor(
                 [[0.0] if 'bad_transition' in info.keys() else [1.0]
                  for info in infos])
-            rollouts.insert(obs, action, dist.mean, dist.stddev,
+            rollouts.insert(obs, action, dist.mean.detach(), dist.stddev.detach(),
                             value, reward, masks, bad_masks)
 
         with torch.no_grad():
@@ -213,21 +215,6 @@ def main(config=None, args_dict=None):
         metrics = agent.update(rollouts)
 
         rollouts.after_update()
-
-        # save for every interval-th episode or for the last epoch
-        if (j % args_dict['save_interval'] or j == num_updates - 1) \
-                and args_dict['logging']:
-            save_path = log_dir_ + '/models'
-            try:
-                os.makedirs(save_path)
-            except OSError:
-                pass
-
-            torch.save([
-                actor_critic,
-                getattr(utils.utils.get_vec_normalize(envs), 'obs_rms', None)
-            ], os.path.join(save_path, args_dict['env_name'] + ".pt"))
-
         total_num_steps = (j + 1) * args_dict['num_processes'] * args_dict['num_steps']
         if j % args_dict['log_interval'] == 0 and len(episode_rewards) > 1:
             end = time.time()
@@ -255,6 +242,21 @@ def main(config=None, args_dict=None):
             if args_dict['summary']:
                 writer.add_scalar('mean_eval_episode_rewards',
                                   mean_eval_episode_rewards, total_num_steps)
+            # save for every interval-th episode or for the last epoch
+            if args_dict['save_model'] and mean_eval_episode_rewards >= best_eval:
+                save_path = log_dir_ + '/models'
+                try:
+                    os.makedirs(save_path)
+                except OSError:
+                    pass
+
+                torch.save([
+                    actor_critic,
+                    getattr(utils.utils.get_vec_normalize(envs), 'obs_rms', None)
+                ], os.path.join(save_path, args_dict['env_name'] + ".pt"))
+
+                best_eval = mean_eval_episode_rewards
+
         if args_dict['summary']:
             writer.add_scalar('value_loss_epoch',
                               metrics['value_loss_epoch'], total_num_steps)

@@ -28,10 +28,10 @@
  clip_param: 0.2
  clip_importance_ratio: False
  
- logging: True
- summary: True
+ logging: False
+ summary: False
+ save_model: False
  log_interval: 1
- save_interval: 100
  eval_interval: 2
  
  num_env_steps: 3.0e+6

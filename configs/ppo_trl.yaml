@@ -30,9 +30,9 @@
 
  logging: False
  summary: False
+ save_model: False
  log_interval: 1
- save_interval: 100
- eval_interval: 5
+ eval_interval: 2
  
  num_env_steps: 1.5e+6
  env_name: 'HalfCheetah-v2'
