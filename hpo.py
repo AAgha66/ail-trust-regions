@@ -13,14 +13,16 @@ def get_args(trial, config):
 
     args_dict['logging'] = config.params['logging']
     args_dict['summary'] = config.params['summary']
-    args_dict['logging_dir'] = config.params['logging_dir']
     args_dict['gradient_penalty'] = config.params['gradient_penalty']
 
-    args_dict['lr_disc'] = trial.suggest_categorical("lr_disc", [3e-6, 1.0e-5, 3.0e-5, 1e-4])    
+    args_dict['lr_disc'] = trial.suggest_categorical("lr_disc", [3e-6, 1.0e-5, 3.0e-5, 1e-4, 3e-4])
     args_dict['lr_policy'] = trial.suggest_categorical("lr_policy", [3e-5, 1.0e-4, 3.0e-4])
     args_dict['lr_value'] = trial.suggest_categorical("lr_value", [3e-5, 1.0e-4, 3.0e-4])
     args_dict['lambda_gae'] = trial.suggest_categorical("lambda_gae", [0.95, 0.96, 0.97, 0.98])
     args_dict['gamma'] = trial.suggest_categorical("gamma", [0.97, 0.99, 0.997])
+
+    if config.params['use_kl_penalty']:
+        args_dict['kl_target'] = trial.suggest_categorical("kl_target", [0.003, 0.01, 0.03, 0.1, 0.3])
 
     if config.params['use_proj']:
         args_dict['proj_type'] = config.params['proj_type']
