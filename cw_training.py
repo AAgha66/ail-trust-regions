@@ -16,11 +16,14 @@ class MyExperiment(experiment.AbstractExperiment):
 
         args_dict['logging'] = config.params['logging']
         args_dict['summary'] = config.params['summary']
-        args_dict['gradient_penalty'] = config.params['gradient_penalty']
-
+        args_dict['logging_dir'] = config.params['logging_dir']
+        args_dict['log_dir'] = config.params['log_dir']
+        args_dict['gail_experts_dir'] = config.params['gail_experts_dir']        
+        
         args_dict['lr_disc'] = config.params['lr_disc']
         args_dict['lr_policy'] = config.params['lr_policy']
         args_dict['lr_value'] = config.params['lr_value']
+        args_dict['gradient_penalty'] = config.params['gradient_penalty']
         
         args_dict['lambda_gae'] = config.params['lambda_gae']
         args_dict['gamma'] = config.params['gamma']
