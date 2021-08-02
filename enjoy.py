@@ -6,14 +6,13 @@ from utils.arguments import get_args_dict
 import torch
 import numpy as np
 from utils.envs import make_vec_envs
-from utils.utils import get_render_func, get_vec_normalize
-import utils.utils
+from utils.utils import get_render_func, get_vec_normalize, get_exp_name
 
 sys.path.append('a2c_ppo_acktr')
 
 parser = argparse.ArgumentParser(description='RL')
 parser.add_argument(
-    '--non-det',
+    '--det',
     action='store_true',
     default=True,
     help='whether to use a non-deterministic policy')
@@ -33,15 +32,13 @@ parser.add_argument(
     help='whether to use a non-deterministic policy')
 parser.add_argument(
     '--num_trajs',
-    default=53,
+    default=10,
     help='number of trajectories for expert data')
 
 args = parser.parse_args()
-args.det = not args.non_det
-
 args_dict = get_args_dict(config=args.config)
-exp_name = utils.get_exp_name(args_dict)
-load_dir = 'experiments/' + args_dict['env_name'] + '/' + exp_name + '/models/'
+exp_name = get_exp_name(args_dict)
+load_dir = 'log/' + args_dict['env_name'] + '/' + exp_name + '/models/'
 
 env = make_vec_envs(
     args_dict['env_name'],
@@ -115,7 +112,7 @@ while len(eval_episode_rewards) < int(args.num_trajs):
     if args.save_expert:
         for info in infos:
             if 'episode' in info.keys():
-                if (info['episode']['l'] == 1000):
+                if info['episode']['l'] == 1000:
                     eval_episode_rewards.append(info['episode']['r'])
                     observations.append(torch.unsqueeze(episode_observations, dim=0))
                     actions.append(torch.unsqueeze(episode_actions, dim=0))
