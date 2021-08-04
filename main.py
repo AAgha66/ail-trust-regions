@@ -5,7 +5,7 @@ from collections import deque
 import csv
 import numpy as np
 import torch
-
+import yaml
 import utils.utils
 from models import gail, ppo, trpo
 from utils.arguments import get_args_dict
@@ -48,6 +48,8 @@ def main(config=None, args_dict=None):
         csv_writer.writeheader()
         csv_writer_grads = csv.DictWriter(f_grads, fieldnames=fnames_grads)
         csv_writer_grads.writeheader()
+        with open(log_dir_ + '/args.yml', 'w') as outfile:
+            yaml.dump(args_dict, outfile, default_flow_style=False)
 
     torch.manual_seed(args_dict['seed'])
     torch.cuda.manual_seed_all(args_dict['seed'])
@@ -294,8 +296,7 @@ def main(config=None, args_dict=None):
 
     if args_dict['summary']:
         writer.close()
-    print('Finished Training')
-
+    print('Finished Training: ' + str(sum(list_eval_rewards) / len(list_eval_rewards)))
     return sum(list_eval_rewards) / len(list_eval_rewards)
 
 
