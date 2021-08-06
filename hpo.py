@@ -4,6 +4,7 @@ import numpy as np
 from main import main
 import yaml
 from joblib import Parallel, delayed
+import optuna
 
 
 def get_args(trial, config):
@@ -13,23 +14,29 @@ def get_args(trial, config):
 
     args_dict['logging'] = config.params['logging']
     args_dict['summary'] = config.params['summary']
-    args_dict['gail_experts_dir'] = config.params['gail_experts_dir']
-    args_dict['gradient_penalty'] = config.params['gradient_penalty']    
+    args_dict['save_model'] = config.params['save_model']
 
-    args_dict['lr_disc'] = trial.suggest_categorical("lr_disc", [3e-6, 1.0e-5, 3.0e-5, 1e-4, 3e-4])
-    args_dict['lr_policy'] = trial.suggest_categorical("lr_policy", [3e-5, 1.0e-4, 3.0e-4])
-    args_dict['lr_value'] = trial.suggest_categorical("lr_value", [3e-5, 1.0e-4, 3.0e-4])
-    args_dict['lambda_gae'] = trial.suggest_categorical("lambda_gae", [0.95, 0.96, 0.97, 0.98])
+    args_dict['gail_experts_dir'] = config.params['gail_experts_dir']
+    args_dict['logging_dir'] = config.params['logging_dir'] + str(trial.number) + '/'
+    args_dict['log_dir'] = config.params['log_dir']
+
+    args_dict['gradient_penalty'] = config.params['gradient_penalty']
+
+    args_dict['lr_disc'] = trial.suggest_float("lr_disc", 3e-6, 5e-4, log=True)
+    args_dict['lr_policy'] = trial.suggest_float("lr_policy", 1e-5, 5e-4, log=True)
+    args_dict['lr_value'] = trial.suggest_float("lr_value", 1e-5, 5e-4, log=True)
+
+    args_dict['gae_lambda'] = trial.suggest_categorical("gae_lambda", [0.95, 0.96, 0.97, 0.98])
     args_dict['gamma'] = trial.suggest_categorical("gamma", [0.97, 0.99, 0.997])
 
     if config.params['use_kl_penalty']:
-        args_dict['max_kl'] = trial.suggest_categorical("max_kl", [0.003, 0.01, 0.03, 0.1, 0.3])
+        args_dict['kl_target'] = trial.suggest_categorical("kl_target", [0.003, 0.01, 0.03, 0.1, 0.3])
 
     if config.params['use_proj']:
         args_dict['proj_type'] = config.params['proj_type']
         args_dict['cov_bound'] = trial.suggest_float("cov_bound", 1e-5, 1e-2, log=True)
         args_dict['mean_bound'] = trial.suggest_float("mean_bound", 1e-4, 1e-1, log=True)
-        args_dict['trust_region_coeff'] = trial.suggest_int("trust_region_coeff", 4, 16, step=4)
+        args_dict['trust_region_coeff'] = trial.suggest_int("trust_region_coeff", 4, 16, step=2)
 
     return args_dict
 
@@ -44,14 +51,13 @@ def objective_wrapper(trial, config):
         tmp['seed'] = seed
         dicts.append(tmp)
 
-    rewards_moving_avgs = Parallel(n_jobs=4)(delayed(main)(None, dict) for dict in dicts)
-    return -np.mean(rewards_moving_avgs)  # Aggregate results and determine the score.
+    rewards_moving_avgs = Parallel(n_jobs=3)(delayed(main)(None, dict) for dict in dicts)
+    return np.mean(rewards_moving_avgs)  # Aggregate results and determine the score.
 
 
 def run_study(config):
-    study = optuna.create_study()
+    study = optuna.create_study(direction="maximize")
     study.optimize(lambda trial: objective_wrapper(trial, config), n_trials=config.params['n_trials'])
-    print(study.best_trial)
 
 
 if __name__ == "__main__":

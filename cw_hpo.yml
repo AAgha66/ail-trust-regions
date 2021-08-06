@@ -6,36 +6,39 @@ repetitions: 1          # number of times one set of parameters is run
 params:
   num_env_steps: 1.0e+6
   n_trials: 60
-  logging: False
+  logging: True
   summary: False
+  save_model: False
+  logging_dir: '/home/kit/anthropomatik/kn6273/Repos/hpo_logs_05.08/hpo_w2_sn/'
   gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/ail-trust-regions/gail_experts'
+  log_dir: '/home/kit/anthropomatik/kn6273/gym'
 ---
 # Slurm bwuni cpu
 name: "SLURM"   # MUST BE "SLURM"
 partition: "single"  # "single" for cpu, "gpu_4" or gpu_8" for gpu
-job-name: "hpoPpoPen" #this will be the experiment's name in slurm
+job-name: "hpoW2Sn" #this will be the experiment's name in slurm
 num_parallel_jobs: 100 # max number of jobs executed in parallel
 ntasks: 1   #  leave that like it is
 cpus-per-task: 4   # there are 10 cores for each GPU
 mem-per-cpu: 2250  # in MB
-time: 3000   # in minutes
+time: 4320   # in minutes
 
 
-experiment_copy_auto_dst: "/home/kit/anthropomatik/kn6273/Repos/autodst/hpo_ppo_pen/"
+experiment_copy_auto_dst: "/home/kit/anthropomatik/kn6273/Repos/autodst/hpo_w2_sn/"
 experiment_copy_src: "."
 
 ---
 # Experiment
-name: "hpoPpoPen"
+name: "hpoW2Sn"
 # Required: Can also be set in DEFAULT
-path: "/home/kit/anthropomatik/kn6273/Repos/optuna_logs/hpo_ppo_pen/"   # location to save results in
+path: "/home/kit/anthropomatik/kn6273/Repos/optuna_logs_05.08/hpo_w2_sn/"   # location to save results in
 repetitions: 1  # number of times one set of parameters is run
 
 # Experiment Parameters
 list:
-    config_file: ['configs/gail_ppo_pen.yaml', 'configs/gail_ppo_pen.yaml']
-    use_proj: [False, False]
-    proj_type: ['None', 'None']
+    config_file: ['configs/gail_trl.yaml', 'configs/gail_trl.yaml']
+    use_proj: [True, True]
+    proj_type: ['w2', 'w2']
     env_name: ['Walker2d-v2', 'HalfCheetah-v2']
     gradient_penalty: [False, False]
-    use_kl_penalty: [True, True]
+    use_kl_penalty: [False, False]
