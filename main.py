@@ -16,6 +16,11 @@ from evaluation import evaluate
 from torch.utils.tensorboard import SummaryWriter
 
 
+def running_mean(x, N):
+    cumsum = np.cumsum(np.insert(x, 0, 0))
+    return ((cumsum[N:] - cumsum[:-N]) / float(N))[-1]
+
+
 def main(config=None, args_dict=None):
     if args_dict is None:
         args_dict = get_args_dict(config=config)
@@ -156,7 +161,7 @@ def main(config=None, args_dict=None):
     gail_iters = 0
     list_eval_rewards = []
     best_eval = -np.inf
-    metrics = None
+
     for j in range(num_updates):
         if args_dict['use_linear_lr_decay']:
             # decrease learning rate linearly
@@ -199,8 +204,8 @@ def main(config=None, args_dict=None):
                 gail_epoch = 100  # Warm up
             for _ in range(gail_epoch):
                 _, gail_norm_grad_epoch, acc_policy_epoch, acc_expert_epoch = \
-                    discr.update(gail_train_loader, rollouts, 
-                    utils.utils.get_vec_normalize(envs)._obfilt)
+                    discr.update(gail_train_loader, rollouts,
+                                 utils.utils.get_vec_normalize(envs)._obfilt)
 
                 gail_norm_grad.extend(gail_norm_grad_epoch)
                 acc_policy.extend(acc_policy_epoch)
@@ -239,7 +244,7 @@ def main(config=None, args_dict=None):
                                                  args_dict['num_processes'], args_dict['log_dir'],
                                                  args_dict['norm_obs'], args_dict['norm_reward'], args_dict['clip_obs'],
                                                  args_dict['clip_reward'], device)
-            list_eval_rewards.append(mean_eval_episode_rewards)                                                 
+            list_eval_rewards.append(mean_eval_episode_rewards)
             print("Evaluation: " + str(mean_eval_episode_rewards))
             if args_dict['summary']:
                 writer.add_scalar('mean_eval_episode_rewards',
