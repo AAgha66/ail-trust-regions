@@ -26,6 +26,12 @@ class PPO:
                  max_grad_norm=None,
                  use_clipped_value_loss=True,
                  use_projection=True,
+                 action_space=6,
+                 total_train_steps=None,
+                 entropy_schedule='None',
+                 scale_prec=True,
+                 entropy_eq=False,
+                 entropy_first=True,
                  clip_importance_ratio=True,
                  gradient_clipping=False,
                  mean_bound=0.03,
@@ -64,9 +70,11 @@ class PPO:
         if use_projection:
             self.proj = get_projection_layer(proj_type=proj_type, mean_bound=mean_bound,
                                              cov_bound=cov_bound, trust_region_coeff=trust_region_coeff,
-                                             scale_prec=True, entropy_schedule=None,
-                                             target_entropy=0.0, temperature=0.5, entropy_eq=False,
-                                             entropy_first=False, do_regression=False,
+                                             scale_prec=scale_prec, action_dim=action_space,
+                                             entropy_schedule=entropy_schedule,
+                                             total_train_steps=total_train_steps,
+                                             target_entropy=0.0, temperature=0.5, entropy_eq=entropy_eq,
+                                             entropy_first=entropy_first, do_regression=False,
                                              cpu=True, dtype=torch.float32)
 
         self.policy_params = list(actor_critic.base.actor.parameters()) + list(actor_critic.dist.parameters())

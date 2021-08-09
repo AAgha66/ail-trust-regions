@@ -167,7 +167,7 @@ class BaseProjectionLayer(object):
         # projection utils
         assert (action_dim and total_train_steps) if entropy_schedule else True
         self.entropy_proj = entropy_equality_projection if entropy_eq else entropy_inequality_projection
-        self.entropy_schedule = get_entropy_schedule(entropy_schedule, total_train_steps, dim=action_dim)
+        self.entropy_schedule = get_entropy_schedule(entropy_schedule, total_train_steps, dim=action_dim.shape[0])
         self.target_entropy = tensorize(target_entropy, cpu=cpu, dtype=dtype)
         self.entropy_first = entropy_first
         self.entropy_eq = entropy_eq

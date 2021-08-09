@@ -1,7 +1,7 @@
  algo: 'ppo'
 
  use_gail: True
- gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/ail-trust-regions/gail_experts'
+ gail_experts_dir: './gail_experts'
  gail_batch_size: 128
  gail_epoch: 5
  lr_disc: 3.0e-5
@@ -30,14 +30,14 @@
  
  logging: True
  summary: True
- save_model: True
+ save_model: False
  log_interval: 1
  eval_interval: 2
  
- num_env_steps: 3.0e+6
+ num_env_steps: 1.5e+6
  env_name: 'HalfCheetah-v2'
- logging_dir: '/home/temp_store/Ahmed_Agha/log_27.07/gail_trl_v20/'
- log_dir: '/home/temp_store/Ahmed_Agha/gym'
+ logging_dir: './logs_gail_trl_ent/'
+ log_dir: '/tmp/gym'
  no_cuda: True
  use_proper_time_limits: True
 
@@ -53,10 +53,15 @@
  start_beta: 1.0
  kl_target: 0.01
 
+ entropy_schedule: 'exp'
+ scale_prec: True
+ entropy_eq: False
+ entropy_first: True
+
  use_projection: True
  lr_policy: 3.0e-4
  lr_value: 3.0e-4
- proj_type: 'kl'
+ proj_type: 'w2'
  mean_bound: 0.03
  cov_bound: 0.005
  trust_region_coeff: 8.0

@@ -70,6 +70,7 @@ def main(config=None, args_dict=None):
                          args_dict['gamma'], args_dict['log_dir'], args_dict['norm_obs'],
                          args_dict['norm_reward'], args_dict['clip_obs'], args_dict['clip_reward'],
                          device, False)
+    num_updates = int(args_dict['num_env_steps'] // args_dict['num_steps'] // args_dict['num_processes'])
 
     actor_critic = Policy(
         envs.observation_space.shape,
@@ -96,6 +97,12 @@ def main(config=None, args_dict=None):
             max_grad_norm=args_dict['max_grad_norm'],
             use_clipped_value_loss=args_dict['use_clipped_value_loss'],
             use_projection=args_dict['use_projection'],
+            action_space=envs.action_space,
+            total_train_steps=num_updates,
+            entropy_schedule=args_dict['entropy_schedule'],
+            scale_prec=args_dict['scale_prec'],
+            entropy_eq=args_dict['entropy_eq'],
+            entropy_first=args_dict['entropy_first'],
             clip_importance_ratio=args_dict['clip_importance_ratio'],
             gradient_clipping=args_dict['gradient_clipping'],
             mean_bound=args_dict['mean_bound'],
@@ -151,7 +158,6 @@ def main(config=None, args_dict=None):
     episode_rewards = deque(maxlen=5)
 
     start = time.time()
-    num_updates = int(args_dict['num_env_steps'] // args_dict['num_steps'] // args_dict['num_processes'])
 
     writer = None
     if args_dict['summary']:
