@@ -15,7 +15,7 @@
  value_loss_coef: 1.0
  max_grad_norm: 0.5
 
- seed: 2
+ seed: 0
  cuda_deterministic: False
  num_processes: 1
  num_steps: 2048
@@ -25,17 +25,16 @@
 
  mini_batch_size: 64
  clip_param: 0.2
- clip_importance_ratio: False
 
- logging: False
- summary: False
+ logging: True
+ summary: True
  save_model: False
  log_interval: 1
  eval_interval: 2
  
- num_env_steps: 3.0e+6
+ num_env_steps: 1.0e+6
  env_name: 'HalfCheetah-v2'
- logging_dir: '/home/temp_store/'
+ logging_dir: './logs_ppo/'
  log_dir: '/tmp/gym/'
  no_cuda: True
  use_proper_time_limits: True
@@ -50,12 +49,22 @@
  lr_policy: 3.0e-4
  lr_value: 3.0e-4
 
- use_kl_penalty: True
- start_beta: 0.5
- kl_target: 0.01
+ clip_importance_ratio: True
+ use_kl_penalty: False
+ use_rollback: False
+ use_tr_ppo: False
+ use_truly_ppo: False
+
+ rb_alpha: 5.0
+ kl_target: 0.03
+ start_beta: 1.0
 
  use_projection: False
  proj_type: 'kl'
  mean_bound: 0.03
  cov_bound: 0.005
  trust_region_coeff: 8.0
+ entropy_schedule: 'None'
+ scale_prec: True
+ entropy_eq: False
+ entropy_first: True

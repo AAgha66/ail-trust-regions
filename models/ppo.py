@@ -17,6 +17,9 @@ class PPO:
                  entropy_coef,
                  num_steps,
                  use_kl_penalty=False,
+                 use_rollback=False,
+                 use_tr_ppo=False,
+                 use_truly_ppo=False,
                  beta=0.5,
                  kl_target=0.01,
                  lr_policy=None,
@@ -36,11 +39,11 @@ class PPO:
                  gradient_clipping=False,
                  mean_bound=0.03,
                  cov_bound=0.001,
+                 rb_alpha=0.3,
                  trust_region_coeff=8.0):
 
-        assert not ((use_kl_penalty and clip_importance_ratio) or
-                    (use_kl_penalty and use_projection) or
-                    (clip_importance_ratio and use_projection))
+        assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
+                    use_rollback, use_tr_ppo, use_truly_ppo]) == 1
 
         self.actor_critic = actor_critic
 
@@ -65,7 +68,11 @@ class PPO:
         self.beta = beta
         self.kl_target = kl_target
         self.use_kl_penalty = use_kl_penalty
+        self.use_rollback = use_rollback
+        self.use_tr_ppo = use_tr_ppo
+        self.use_truly_ppo = use_truly_ppo
 
+        self.rb_alpha = rb_alpha
         self.proj = None
         if use_projection:
             self.proj = get_projection_layer(proj_type=proj_type, mean_bound=mean_bound,
@@ -114,7 +121,7 @@ class PPO:
                 dist_entropy = new_dist.entropy().mean()
 
                 maha_part, cov_part = gaussian_kl(old_dist, new_dist)
-                kl = (maha_part + cov_part)
+                kl = (maha_part + cov_part).unsqueeze(-1)
 
                 ratio = torch.exp(action_log_probs -
                                   old_action_log_probs_batch)
@@ -126,8 +133,45 @@ class PPO:
                                         1.0 + self.clip_param) * adv_targ
                     action_loss = -torch.min(surr1, surr2).mean()
                 elif self.use_kl_penalty:
-                    surr1 -= self.beta * kl.unsqueeze(-1)
+                    surr1 -= self.beta * kl
                     action_loss = -surr1.mean()
+                elif self.use_rollback:
+                    mask_a = ratio >= 1.0 + self.clip_param
+                    mask_b = ratio <= 1.0 - self.clip_param
+                    mask_c = torch.logical_not(torch.logical_or(mask_a, mask_b))
+
+                    surr_loss = torch.ones(surr1.shape, dtype=surr1.dtype, device=surr1.device)
+                    surr2_a = (- self.rb_alpha * ratio + (1 + self.rb_alpha) * (1 + self.clip_param)) * adv_targ
+                    surr2_b = (- self.rb_alpha * ratio + (1 + self.rb_alpha) * (1 - self.clip_param)) * adv_targ
+
+                    surr_loss[mask_a] = torch.min(surr1[mask_a], surr2_a[mask_a])
+                    surr_loss[mask_b] = torch.min(surr1[mask_b], surr2_b[mask_b])
+                    surr_loss[mask_c] = surr1[mask_c]
+
+                    action_loss = -surr_loss.mean()
+                elif self.use_tr_ppo:
+                    mask = kl >= self.kl_target
+                    ratio_old = torch.exp(old_action_log_probs_batch -
+                                          old_action_log_probs_batch)
+                    surr2 = ratio_old * adv_targ
+
+                    surr_loss = torch.ones(surr1.shape, dtype=surr1.dtype, device=surr1.device)
+                    surr_loss[mask] = torch.min(surr1[mask], surr2[mask])
+                    surr_loss[~mask] = surr1[~mask]
+                    action_loss = -surr_loss.mean()
+
+                elif self.use_truly_ppo:
+                    ratio_old = torch.exp(old_action_log_probs_batch -
+                                          old_action_log_probs_batch)
+                    surr2 = ratio_old * adv_targ
+
+                    mask = torch.logical_and(kl >= self.kl_target, surr1 >= surr2)
+
+                    surr_loss = torch.ones(surr1.shape, dtype=surr1.dtype, device=surr1.device)
+                    surr_loss[mask] = surr1[mask] - self.rb_alpha * kl[mask]
+                    surr_loss[~mask] = surr1[~mask] - self.kl_target
+
+                    action_loss = -surr_loss.mean()
                 else:
                     action_loss = -surr1.mean()
 
