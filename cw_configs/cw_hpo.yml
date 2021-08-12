@@ -9,36 +9,44 @@ params:
   logging: True
   summary: False
   save_model: False
-  logging_dir: '/home/kit/anthropomatik/kn6273/Repos/hpo_logs_05.08/hpo_w2_sn/'
+  logging_dir: '/home/kit/anthropomatik/kn6273/Repos/hpo_logs_12.08/hpo_truly/'
   gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/ail-trust-regions/gail_experts'
   log_dir: '/home/kit/anthropomatik/kn6273/gym'
 ---
 # Slurm bwuni cpu
 name: "SLURM"   # MUST BE "SLURM"
 partition: "single"  # "single" for cpu, "gpu_4" or gpu_8" for gpu
-job-name: "hpoW2Sn" #this will be the experiment's name in slurm
+job-name: "hpoTruly" #this will be the experiment's name in slurm
 num_parallel_jobs: 100 # max number of jobs executed in parallel
-ntasks: 1   #  leave that like it is
+ntasks: 1   # leave that like it is
 cpus-per-task: 4   # there are 10 cores for each GPU
 mem-per-cpu: 2250  # in MB
 time: 4320   # in minutes
 
 
-experiment_copy_auto_dst: "/home/kit/anthropomatik/kn6273/Repos/autodst/hpo_w2_sn/"
+experiment_copy_auto_dst: "/home/kit/anthropomatik/kn6273/Repos/autodst_12.08/hpo_truly/"
 experiment_copy_src: "."
 
 ---
 # Experiment
-name: "hpoW2Sn"
+name: "hpoTruly"
 # Required: Can also be set in DEFAULT
-path: "/home/kit/anthropomatik/kn6273/Repos/optuna_logs_05.08/hpo_w2_sn/"   # location to save results in
+path: "/home/kit/anthropomatik/kn6273/Repos/optuna_logs_12.08/hpo_truly/"   # location to save results in
 repetitions: 1  # number of times one set of parameters is run
 
 # Experiment Parameters
 list:
-    config_file: ['configs/gail_trl.yaml', 'configs/gail_trl.yaml']
-    use_proj: [True, True]
-    proj_type: ['w2', 'w2']
+    config_file: ['configs/gail_ppo.yaml', 'configs/gail_ppo.yaml']
     env_name: ['Walker2d-v2', 'HalfCheetah-v2']
-    gradient_penalty: [False, False]
+    
+    clip_importance_ratio: [False, False]
     use_kl_penalty: [False, False]
+    use_rollback: [False, False]
+    use_tr_ppo: [False, False]
+    use_truly_ppo: [False, False]
+    
+    use_entropy_pen: [False, False]
+
+    use_proj: [False, False]
+    proj_type: ['None', 'None']    
+    entropy_schedule: ['None', 'None'] 
