@@ -25,7 +25,7 @@ class MyExperiment(experiment.AbstractExperiment):
         args_dict['lr_value'] = config.params['lr_value']
         args_dict['gradient_penalty'] = config.params['gradient_penalty']
         
-        args_dict['lambda_gae'] = config.params['lambda_gae']
+        args_dict['gae_lambda'] = config.params['gae_lambda']
         args_dict['gamma'] = config.params['gamma']
         args_dict['seed'] = config.params['seed']
 
