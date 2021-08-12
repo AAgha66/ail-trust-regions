@@ -131,6 +131,9 @@ class PPO:
                 if self.clip_importance_ratio:
                     surr2 = torch.clamp(ratio, 1.0 - self.clip_param,
                                         1.0 + self.clip_param) * adv_targ
+                    if self.use_kl_penalty:
+                        surr1 -= self.beta * kl
+                        surr2 -= self.beta * kl
                     action_loss = -torch.min(surr1, surr2).mean()
                 elif self.use_kl_penalty:
                     surr1 -= self.beta * kl
