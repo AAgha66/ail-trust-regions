@@ -47,24 +47,25 @@
  norm_reward: False
  clip_obs: 1.0e+6
  clip_reward: 1.0e+6
+ lr_policy: 3.0e-4
+ lr_value: 3.0e-4
 
  clip_importance_ratio: False
  use_kl_penalty: False
  use_rollback: False
  use_tr_ppo: False
  use_truly_ppo: False
+
  rb_alpha: 5.0
  kl_target: 0.03
  start_beta: 1.0
 
  use_projection: True
- lr_policy: 3.0e-4
- lr_value: 3.0e-4
  proj_type: 'w2'
  mean_bound: 0.03
  cov_bound: 0.005
  trust_region_coeff: 8.0
- entropy_schedule: 'exp'
+ entropy_schedule: 'None'
  scale_prec: True
  entropy_eq: False
  entropy_first: True

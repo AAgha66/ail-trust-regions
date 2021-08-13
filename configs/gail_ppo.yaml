@@ -50,11 +50,11 @@
  lr_policy: 3.0e-4
  lr_value: 3.0e-4
 
- clip_importance_ratio: False
+ clip_importance_ratio: True
  use_kl_penalty: False
  use_rollback: False
  use_tr_ppo: False
- use_truly_ppo: True
+ use_truly_ppo: False
 
  rb_alpha: 0.3
  kl_target: 0.35
