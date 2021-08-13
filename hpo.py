@@ -21,6 +21,7 @@ def get_args(trial, config):
     args_dict['log_dir'] = config.params['log_dir']
 
     args_dict['clip_importance_ratio'] = config.params['clip_importance_ratio']
+    args_dict['gradient_penalty'] = config.params['gradient_penalty']
     
     args_dict['use_kl_penalty'] = config.params['use_kl_penalty']
     if config.params['use_kl_penalty']:
@@ -53,6 +54,7 @@ def get_args(trial, config):
 
     if config.params['use_proj']:
         args_dict['proj_type'] = config.params['proj_type']
+        args_dict['entropy_schedule'] = config.params['entropy_schedule']
         args_dict['cov_bound'] = trial.suggest_categorical("cov_bound", [1.0e-5, 5.0e-5, 1.0e-4, 5.0e-4, 1.0e-3, 5.0e-3, 1.0e-2])
         args_dict['mean_bound'] = trial.suggest_categorical("mean_bound", [1.0e-4, 5.0e-4, 1.0e-3, 5.0e-3, 1.0e-2, 5.0e-2, 1.0e-1])
         args_dict['trust_region_coeff'] = trial.suggest_int("trust_region_coeff", 4, 16, step=2)
