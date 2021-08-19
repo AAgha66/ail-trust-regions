@@ -48,16 +48,17 @@ def get_args(trial, config):
     args_dict['gamma'] = trial.suggest_categorical("gamma", [0.97, 0.99, 0.997])
     
     if config.params['use_entropy_pen']:
-        args_dict['entropy_coef'] = trial.suggest_categorical("entropy_coef", [5.0e-4, 1.0e-3, 5.0e-3])
+        args_dict['entropy_coef'] = trial.suggest_float("entropy_coef", 1e-4, 1e-2, log=True)
     else:
         args_dict['entropy_coef'] = 0
 
     if config.params['use_proj']:
         args_dict['proj_type'] = config.params['proj_type']
         args_dict['entropy_schedule'] = config.params['entropy_schedule']
-        args_dict['cov_bound'] = trial.suggest_categorical("cov_bound", [1.0e-5, 5.0e-5, 1.0e-4, 5.0e-4, 1.0e-3, 5.0e-3, 1.0e-2])
-        args_dict['mean_bound'] = trial.suggest_categorical("mean_bound", [1.0e-4, 5.0e-4, 1.0e-3, 5.0e-3, 1.0e-2, 5.0e-2, 1.0e-1])
-        args_dict['trust_region_coeff'] = trial.suggest_int("trust_region_coeff", 4, 16, step=2)
+        args_dict['cov_bound'] = trial.suggest_float("cov_bound", 1e-5, 1e-2, log=True)
+        args_dict['mean_bound'] = trial.suggest_float("mean_bound", 1e-4, 1e-1, log=True)
+        args_dict['trust_region_coeff'] = trial.suggest_int("trust_region_coeff", 4, 16, step=4)
+
 
     return args_dict
 
