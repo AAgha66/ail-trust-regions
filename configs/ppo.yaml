@@ -21,7 +21,6 @@
  num_steps: 2048
 
  policy_epoch: 10
- vf_epoch: 10
 
  mini_batch_size: 64
  clip_param: 0.2

@@ -21,8 +21,7 @@
  num_processes: 1
  num_steps: 2048
 
- policy_epoch: 10
- vf_epoch: 10
+ policy_epoch: 20
 
  mini_batch_size: 64
  clip_param: 0.2

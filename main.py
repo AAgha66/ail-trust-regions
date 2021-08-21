@@ -82,7 +82,6 @@ def main(config=None, args_dict=None):
             actor_critic=actor_critic,
             clip_param=args_dict['clip_param'],
             policy_epoch=args_dict['policy_epoch'],
-            vf_epoch=args_dict['vf_epoch'],
             mini_batch_size=args_dict['mini_batch_size'],
             value_loss_coef=args_dict['value_loss_coef'],
             entropy_coef=args_dict['entropy_coef'],

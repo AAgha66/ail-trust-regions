@@ -11,7 +11,6 @@ class PPO:
                  actor_critic,
                  clip_param,
                  policy_epoch,
-                 vf_epoch,
                  mini_batch_size,
                  value_loss_coef,
                  entropy_coef,
@@ -49,7 +48,6 @@ class PPO:
 
         self.clip_param = clip_param
         self.policy_epoch = policy_epoch
-        self.vf_epoch = vf_epoch
         self.mini_batch_size = mini_batch_size
 
         self.value_loss_coef = value_loss_coef
@@ -242,7 +240,7 @@ class PPO:
             metrics = compute_metrics(old_dist, dist)
 
         num_updates_policy = self.policy_epoch * (self.num_steps / self.mini_batch_size)
-        num_updates_value = self.vf_epoch * (self.num_steps / self.mini_batch_size)
+        num_updates_value = self.policy_epoch * (self.num_steps / self.mini_batch_size)
 
         if self.use_kl_penalty:
             if metrics['kl'] > self.kl_target * 1.5:
