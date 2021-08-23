@@ -134,6 +134,7 @@ def main(config=None, args_dict=None):
 
     discr = None
     gail_train_loader = None
+    expert_dataset = None
     if args_dict['use_gail']:
         assert len(envs.observation_space.shape) == 1
         discr = gail.Discriminator(
@@ -158,13 +159,6 @@ def main(config=None, args_dict=None):
     obs = envs.reset()
     rollouts.obs[0].copy_(obs)
     rollouts.to(device)
-
-    tracking_file_name = os.path.join(
-        args_dict['gail_experts_dir'], "trajs_{}.pt".format(
-            args_dict['env_name'].split('-')[0].lower()))
-    tracking_dataset = gail.ExpertDataset(
-        tracking_file_name, num_trajectories=args_dict['num_trajectories'],
-        subsample_frequency=1)
 
     episode_rewards = deque(maxlen=5)
 
@@ -281,7 +275,7 @@ def main(config=None, args_dict=None):
 
                 best_eval = mean_eval_episode_rewards
 
-        tracking_trajs = tracking_dataset.get_traj()
+        tracking_trajs = expert_dataset.get_traj()
         tracking_adv = []
         tracking_rewards = []
         tracking_values = []
@@ -297,7 +291,7 @@ def main(config=None, args_dict=None):
                         tracking_trajs['states'][traj].type(torch.FloatTensor),
                         tracking_trajs['actions'][traj].type(torch.FloatTensor),
                         args_dict['gamma'],
-                        torch.ones(1000, 1))
+                        torch.ones(50, 1))
                     tracking_rewards.append(disc_rewards)
                 else:
                     tracking_rewards.append(tracking_trajs['rewards'][traj])
