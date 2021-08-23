@@ -371,6 +371,8 @@ def main(config=None, args_dict=None):
                                       acc_expert[i], gail_iters)
                 gail_iters += 1
             f.flush()
+            f_adv.flush()
+            f_grads.flush()
 
     if args_dict['summary']:
         writer.close()
