@@ -13,7 +13,6 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
 
         self.device = device
-         
         self.trunk = nn.Sequential(
             nn.Linear(input_dim, hidden_dim), nn.Tanh(),
             nn.Linear(hidden_dim, hidden_dim), nn.Tanh(),
@@ -193,3 +192,6 @@ class ExpertDataset(torch.utils.data.Dataset):
 
         return self.trajectories['states'][traj_idx][i], self.trajectories[
             'actions'][traj_idx][i]
+
+    def get_traj(self):
+        return self.trajectories

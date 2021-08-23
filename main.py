@@ -16,11 +16,6 @@ from evaluation import evaluate
 from torch.utils.tensorboard import SummaryWriter
 
 
-def running_mean(x, N):
-    cumsum = np.cumsum(np.insert(x, 0, 0))
-    return ((cumsum[N:] - cumsum[:-N]) / float(N))[-1]
-
-
 def main(config=None, args_dict=None):
     if args_dict is None:
         args_dict = get_args_dict(config=config)
@@ -30,6 +25,7 @@ def main(config=None, args_dict=None):
 
     f = None
     f_grads = None
+    f_adv = None
     if args_dict['logging']:
         if os.path.isdir(log_dir_):
             print("experiment already exists !")
@@ -41,18 +37,23 @@ def main(config=None, args_dict=None):
 
         f = open(log_dir_ + '/logs/log.csv', 'w')
         f_grads = open(log_dir_ + '/logs/log_grads.csv', 'w')
+        f_adv = open(log_dir_ + '/logs/log_adv.csv', 'w')
+
     fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards', 'value_loss_epoch',
               'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'entropy_mean', 'entropy_diff_mean']
-
-    fnames_grads = ['norm_grad_disc']
+    fnames_grads = ['total_num_steps', 'norm_grad_disc', 'acc_expert', 'acc_policy']
+    fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values']
 
     csv_writer = None
     csv_writer_grads = None
+    csv_writer_adv = None
     if args_dict['logging']:
         csv_writer = csv.DictWriter(f, fieldnames=fnames)
         csv_writer.writeheader()
         csv_writer_grads = csv.DictWriter(f_grads, fieldnames=fnames_grads)
         csv_writer_grads.writeheader()
+        csv_writer_adv = csv.DictWriter(f_adv, fieldnames=fnames_adv)
+        csv_writer_adv.writeheader()
         with open(log_dir_ + '/args.yml', 'w') as outfile:
             yaml.dump(args_dict, outfile, default_flow_style=False)
 
@@ -157,6 +158,13 @@ def main(config=None, args_dict=None):
     obs = envs.reset()
     rollouts.obs[0].copy_(obs)
     rollouts.to(device)
+
+    tracking_file_name = os.path.join(
+        args_dict['gail_experts_dir'], "trajs_{}.pt".format(
+            args_dict['env_name'].split('-')[0].lower()))
+    tracking_dataset = gail.ExpertDataset(
+        tracking_file_name, num_trajectories=args_dict['num_trajectories'],
+        subsample_frequency=1)
 
     episode_rewards = deque(maxlen=5)
 
@@ -273,6 +281,47 @@ def main(config=None, args_dict=None):
 
                 best_eval = mean_eval_episode_rewards
 
+        tracking_trajs = tracking_dataset.get_traj()
+        tracking_adv = []
+        tracking_rewards = []
+        tracking_values = []
+
+        with torch.no_grad():
+            for traj in range(args_dict['num_trajectories']):
+                values, _ = actor_critic.evaluate_actions(
+                    tracking_trajs['states'][traj].type(torch.FloatTensor))
+                tracking_values.append(values)
+
+                if args_dict['use_gail']:
+                    disc_rewards = discr.predict_reward(
+                        tracking_trajs['states'][traj].type(torch.FloatTensor),
+                        tracking_trajs['actions'][traj].type(torch.FloatTensor),
+                        args_dict['gamma'],
+                        torch.ones(1000, 1))
+                    tracking_rewards.append(disc_rewards)
+                else:
+                    tracking_rewards.append(tracking_trajs['rewards'][traj])
+
+                gae = 0
+                adv = torch.zeros(tracking_rewards[-1].shape[0] - 1, 1)
+                for step in reversed(range(tracking_rewards[-1].shape[0] - 1)):
+                    rewards = tracking_rewards[-1]
+                    values = tracking_values[-1]
+
+                    delta = rewards[step] + args_dict['gamma'] * values[step + 1] - \
+                            values[step]
+                    gae = delta + args_dict['gamma'] * args_dict['gae_lambda'] * gae
+                    adv[step] = gae
+
+                tracking_adv.append(adv)
+
+        tracking_adv = torch.cat(tracking_adv, dim=0)
+        tracking_adv = (tracking_adv - tracking_adv.mean()) / (
+                tracking_adv.std() + 1e-5)
+        tracking_adv = tracking_adv.type(torch.HalfTensor)
+        tracking_rewards = torch.cat(tracking_rewards, dim=0).type(torch.HalfTensor)
+        tracking_values = torch.cat(tracking_values, dim=0).type(torch.HalfTensor)
+
         if args_dict['summary']:
             writer.add_scalar('value_loss_epoch',
                               metrics['value_loss_epoch'], total_num_steps)
@@ -285,7 +334,19 @@ def main(config=None, args_dict=None):
                               metrics['kl'], total_num_steps)
             writer.add_scalar('entropy_mean',
                               metrics['entropy'], total_num_steps)
+
+            writer.add_histogram("expert_adv", tracking_adv, total_num_steps)
+            writer.add_histogram("expert_rewards", tracking_rewards, total_num_steps)
+            writer.add_histogram("expert_values", tracking_values, total_num_steps)
+
         if args_dict['logging']:
+            for i in range(tracking_adv.shape[0]):
+                csv_writer_adv.writerow({'total_num_steps': total_num_steps,
+                                         'pair_id': i,
+                                         'advantages': tracking_adv[i].item(),
+                                         'rewards': tracking_rewards[i].item(),
+                                         'values': tracking_values[i].item()})
+
             csv_writer.writerow({'total_num_steps': total_num_steps,
                                  'mean_training_episode_reward': np.mean(episode_rewards),
                                  'mean_eval_episode_rewards': mean_eval_episode_rewards,
@@ -297,7 +358,10 @@ def main(config=None, args_dict=None):
                                  'entropy_diff_mean': metrics['entropy_diff'].item()})
 
             for i, _ in enumerate(gail_norm_grad):
-                csv_writer_grads.writerow({'norm_grad_disc': gail_norm_grad[i].item()})
+                csv_writer_grads.writerow({'total_num_steps': total_num_steps,
+                                           'norm_grad_disc': gail_norm_grad[i].item(),
+                                           'acc_expert': acc_expert[i].item(),
+                                           'acc_policy': acc_policy[i].item()})
                 if args_dict['summary']:
                     writer.add_scalar('norm_grad_disc',
                                       gail_norm_grad[i], gail_iters)
