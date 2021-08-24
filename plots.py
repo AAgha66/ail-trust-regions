@@ -1,55 +1,72 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import glob
 
-files_ppo = [
-    'experiments/HalfCheetah-v2gailTrue-lr0.0003-e_coef0-v_coef0.5-max_grad0.5-seed2-num_batch64-clip_irTrue-envHalfCheetah-v2-projectionFalse-lr_decayTrue-clipped_valueTrue-norm_oTrue-norm_rTrue-clip_o10.0-clip_r10.0/logs/log.csv',
-    'experiments/HalfCheetah-v2gailTrue-lr0.0003-e_coef0-v_coef0.5-max_grad0.5-seed12-num_batch64-clip_irTrue-envHalfCheetah-v2-projectionFalse-lr_decayTrue-clipped_valueTrue-norm_oTrue-norm_rTrue-clip_o10.0-clip_r10.0/logs/log.csv',
-    'experiments/HalfCheetah-v2gailTrue-lr0.0003-e_coef0-v_coef0.5-max_grad0.5-seed22-num_batch64-clip_irTrue-envHalfCheetah-v2-projectionFalse-lr_decayTrue-clipped_valueTrue-norm_oTrue-norm_rTrue-clip_o10.0-clip_r10.0/logs/log.csv']
+expert = {'HalfCheetah-v2': 4984.08181, 'Walker2d-v2': 5801.77730}
 
-files_trl = [
-    'experiments/HalfCheetah-v2gailTrue-lr5e-05-e_coef0-v_coef0.5-max_grad0.5-seed2-num_batch32-clip_irFalse-envHalfCheetah-v2-projectionTrue-lr_decayFalse-clipped_valueFalse-norm_oTrue-norm_rFalse-clip_o1000000.0-clip_r1000000.0/logs/log.csv',
-    'experiments/HalfCheetah-v2gailTrue-lr5e-05-e_coef0-v_coef0.5-max_grad0.5-seed12-num_batch32-clip_irFalse-envHalfCheetah-v2-projectionTrue-lr_decayFalse-clipped_valueFalse-norm_oTrue-norm_rFalse-clip_o1000000.0-clip_r1000000.0/logs/log.csv',
-    'experiments/HalfCheetah-v2gailTrue-lr5e-05-e_coef0-v_coef0.5-max_grad0.5-seed22-num_batch32-clip_irFalse-envHalfCheetah-v2-projectionTrue-lr_decayFalse-clipped_valueFalse-norm_oTrue-norm_rFalse-clip_o1000000.0-clip_r1000000.0/logs/log.csv']
+def plots(dirs, env):
+    lines_list = {}
+    for key in dirs:
+        files_rb = glob.glob(dirs[key] + '/*')
+        for i in range(len(files_rb)):
+            files_rb[i] += "/logs/log.csv"
+        lines_list[key] = files_rb
 
-plt.rcParams['figure.figsize'] = (10, 5)
-plt.style.use('fivethirtyeight')
+    plt.rcParams['figure.figsize'] = (10, 5)
+    plt.style.use('fivethirtyeight')
 
-dfs_ppo = []
-dfs_trl = []
+    df_means = {}
+    df_stds = {}
 
-for filename in files_ppo:
-    dfs_ppo.append(pd.read_csv(filename))
+    for key in lines_list:
+        df = []
+        for file in lines_list[key]:
+            df.append(pd.read_csv(file))
+        df = pd.concat(df)
 
-for filename in files_trl:
-    dfs_trl.append(pd.read_csv(filename))
+        by_row_index = df.groupby(df.index)
+        df_mean = by_row_index.mean()
+        df_std = by_row_index.std()
 
-df_concat_ppo = pd.concat(dfs_ppo)
-df_concat_trl = pd.concat(dfs_trl)
+        df_mean = df_mean.set_index('total_num_steps')
+        df_std.index = df_mean.index
 
-by_row_index_ppo = df_concat_ppo.groupby(df_concat_ppo.index)
-df_means_ppo = by_row_index_ppo.mean()
+        df_means[key] = df_mean
+        df_stds[key] = df_std
 
-by_row_index_trl = df_concat_trl.groupby(df_concat_trl.index)
-df_means_trl = by_row_index_trl.mean()
+    criteria = ['mean_eval_episode_rewards', 'kl_mean', 'entropy_mean',
+                'value_loss_epoch', 'action_loss_epoch', 'trust_region_loss_epoch']
+    labels = ['rewards', 'kl', 'entropy',
+              'value_loss', 'action_loss', 'trust_region_loss']
 
-df_means_ppo = df_means_ppo.set_index('total_num_steps')
-df_means_trl = df_means_trl.set_index('total_num_steps')
+    for i, c in enumerate(criteria):
+        fig, ax = plt.subplots()
 
-criteria = ['mean_eval_episode_rewards', 'kl_mean', 'entropy_mean']
-labels = ['rewards', 'kl', 'entropy']
+        for key in lines_list:
+            plt.plot(df_means[key][c].interpolate(method='linear'), linewidth=1.5)
+            plt.fill_between(df_stds[key][c].index,
+                             df_means[key][c].interpolate(method='linear') - df_stds[key][c].interpolate(
+                                 method='linear'),
+                             df_means[key][c].interpolate(method='linear') + df_stds[key][c].interpolate(
+                                 method='linear'),
+                             alpha=0.35)
+        if (i == 0):
+            plt.axhline(y=expert[env], color='b', linestyle='--', linewidth=2)  # halfcheetah
+        if (i == 1):
+            ax.set_ylim(0, 0.1)
 
-for i, c in enumerate(criteria):
-    # Print the summary statistics of the DataFrame
-    ax_ppo = df_means_ppo[c].plot(linewidth=2, fontsize=12)
-    ax_trl = df_means_trl[c].plot(linewidth=2, fontsize=12)
-    if (i == 1):
-        ax_ppo.set_ylim(0, 0.1)
+        plt.xlabel('steps', fontsize=14)
+        if i == 1:
+            plt.ylabel('mean KL divergence', fontsize=14)
+        else:
+            plt.ylabel(labels[i], fontsize=14)
+        plt.legend(fontsize=12)
+        plt.legend(lines_list.keys())
+        plt.savefig('plots/ppo_vf_vs_no_vf/' + env + '/' + str(labels[i]))
 
-    # Additional customizations
-    ax_ppo.set_xlabel('steps')
-    ax_ppo.set_ylabel(labels[i])
 
-    ax_ppo.legend(fontsize=12)
-    ax_ppo.legend(["PPO", "TRL"])
-
-    plt.show()
+if __name__ == "__main__":
+    env = 'HalfCheetah-v2'
+    dirs = {'ppo with vf clipping': '/home/aagha/training/train_ppo_vf_clip/' + env,
+            'ppo without vf clipping': '/home/aagha/training/train_ppo_no_vf_clip/' + env}
+    plots(dirs, env)
