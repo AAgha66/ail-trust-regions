@@ -2,19 +2,22 @@ import argparse
 import os
 # workaround to unpickle olf model files
 import sys
-from utils.arguments import get_args_dict
 import torch
 import numpy as np
 from utils.envs import make_vec_envs
-from utils.utils import get_render_func, get_vec_normalize, get_exp_name
+from utils.utils import get_render_func, get_vec_normalize
+import yaml
 
 sys.path.append('a2c_ppo_acktr')
 
 parser = argparse.ArgumentParser(description='RL')
 parser.add_argument(
+    '--experiment_dir',
+    help='path of experiment')
+parser.add_argument(
     '--det',
     action='store_true',
-    default=True,
+    default=False,
     help='whether to use a non-deterministic policy')
 parser.add_argument(
     '--render',
@@ -32,13 +35,16 @@ parser.add_argument(
     help='whether to use a non-deterministic policy')
 parser.add_argument(
     '--num_trajs',
-    default=10,
+    default=4,
     help='number of trajectories for expert data')
 
 args = parser.parse_args()
-args_dict = get_args_dict(config=args.config)
-exp_name = get_exp_name(args_dict)
-load_dir = 'log/' + args_dict['env_name'] + '/' + exp_name + '/models/'
+exp_name = args.experiment_dir
+load_dir = exp_name + '/models/'
+with open(exp_name + '/args.yml') as f:
+    # use safe_load instead load
+    args_dict = yaml.safe_load(f)
+args_dict['log_dir'] = '/tmp/gym'
 
 env = make_vec_envs(
     args_dict['env_name'],
@@ -112,7 +118,8 @@ while len(eval_episode_rewards) < int(args.num_trajs):
     if args.save_expert:
         for info in infos:
             if 'episode' in info.keys():
-                if info['episode']['l'] == 1000:
+                print(info['episode']['l'])
+                if info['episode']['l'] == 50:
                     eval_episode_rewards.append(info['episode']['r'])
                     observations.append(torch.unsqueeze(episode_observations, dim=0))
                     actions.append(torch.unsqueeze(episode_actions, dim=0))
@@ -135,12 +142,12 @@ if args.save_expert:
     m = {'states': observations, 'actions': actions,
          'rewards': rewards, 'lengths': lengths}
 
-    expert_dir = 'experiments/' + args_dict['env_name'] + '/' + exp_name + '/expert/'
+    expert_dir = exp_name + '/expert/'
     if os.path.isdir(expert_dir):
         print("expert already exists !")
     else:
         os.makedirs(expert_dir)
-    torch.save(m, expert_dir + 'expert.pt')
+    torch.save(m, expert_dir + args_dict['env_name'] + '_num_traj_' + str(args.num_trajs) + '.pt')
 
 print(" Evaluation using {} episodes: mean reward {:.5f}\n".format(
     len(eval_episode_rewards), np.mean(eval_episode_rewards)))
