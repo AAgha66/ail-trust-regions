@@ -135,31 +135,22 @@ def main(config=None, args_dict=None):
     discr = None
     gail_train_loader = None
     expert_dataset = None
+    if args_dict['use_gail'] or args_dict['track_vf']:
+        file_name = args_dict['gail_experts_dir'] + args_dict['env_name'] + '_num_traj_' + str(args.num_trajs) + '.pt'
+        expert_dataset = gail.ExpertDataset(
+            file_name, num_trajectories=args_dict['num_trajectories'], subsample_frequency=20)
+
     if args_dict['use_gail']:
         assert len(envs.observation_space.shape) == 1
         discr = gail.Discriminator(
             envs.observation_space.shape[0] + envs.action_space.shape[0], 100,
             device, args_dict['gradient_penalty'], lr_disc=args_dict['lr_disc'])
-        file_name = os.path.join(
-            args_dict['gail_experts_dir'], "trajs_{}.pt".format(
-                args_dict['env_name'].split('-')[0].lower()))
-
-        expert_dataset = gail.ExpertDataset(
-            file_name, num_trajectories=args_dict['num_trajectories'], subsample_frequency=20)
         drop_last = len(expert_dataset) > args_dict['gail_batch_size']
         gail_train_loader = torch.utils.data.DataLoader(
             dataset=expert_dataset,
             batch_size=args_dict['gail_batch_size'],
             shuffle=True,
             drop_last=drop_last)
-
-    else:
-        if args_dict['track_vf']:
-            file_name = os.path.join(
-                args_dict['gail_experts_dir'], "trajs_{}.pt".format(
-                    args_dict['env_name'].split('-')[0].lower()))
-            expert_dataset = gail.ExpertDataset(
-                file_name, num_trajectories=args_dict['num_trajectories'], subsample_frequency=20)
 
     rollouts = RolloutStorage(args_dict['num_steps'], args_dict['num_processes'],
                               envs.observation_space.shape, envs.action_space)
