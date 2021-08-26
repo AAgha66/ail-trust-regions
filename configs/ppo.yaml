@@ -5,6 +5,7 @@
  gail_batch_size: 128
  gail_epoch: 5
  lr_disc: 1.0e-3
+ num_trajectories: 4
  gradient_penalty: False
 
  eps: 1.0e-5
@@ -27,6 +28,7 @@
 
  logging: True
  summary: True
+ track_vf: False
  save_model: False
  log_interval: 1
  eval_interval: 2
@@ -59,10 +61,10 @@
  start_beta: 1.0
 
  use_projection: False
- proj_type: 'kl'
- mean_bound: 0.03
- cov_bound: 0.005
- trust_region_coeff: 8.0
+ proj_type: 'None'
+ mean_bound: 00
+ cov_bound: 0
+ trust_region_coeff: 0
  entropy_schedule: 'None'
  scale_prec: True
  entropy_eq: False

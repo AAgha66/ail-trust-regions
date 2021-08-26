@@ -153,6 +153,14 @@ def main(config=None, args_dict=None):
             shuffle=True,
             drop_last=drop_last)
 
+    else:
+        if args_dict['track_vf']:
+            file_name = os.path.join(
+                args_dict['gail_experts_dir'], "trajs_{}.pt".format(
+                    args_dict['env_name'].split('-')[0].lower()))
+            expert_dataset = gail.ExpertDataset(
+                file_name, num_trajectories=args_dict['num_trajectories'], subsample_frequency=20)
+
     rollouts = RolloutStorage(args_dict['num_steps'], args_dict['num_processes'],
                               envs.observation_space.shape, envs.action_space)
 
@@ -275,46 +283,46 @@ def main(config=None, args_dict=None):
 
                 best_eval = mean_eval_episode_rewards
 
-        tracking_trajs = expert_dataset.get_traj()
         tracking_adv = []
         tracking_rewards = []
         tracking_values = []
+        if args_dict['track_vf']:
+            tracking_trajs = expert_dataset.get_traj()
+            with torch.no_grad():
+                for traj in range(args_dict['num_trajectories']):
+                    values, _ = actor_critic.evaluate_actions(
+                        tracking_trajs['states'][traj].type(torch.FloatTensor))
+                    tracking_values.append(values)
 
-        with torch.no_grad():
-            for traj in range(args_dict['num_trajectories']):
-                values, _ = actor_critic.evaluate_actions(
-                    tracking_trajs['states'][traj].type(torch.FloatTensor))
-                tracking_values.append(values)
+                    if args_dict['use_gail']:
+                        disc_rewards = discr.predict_reward(
+                            tracking_trajs['states'][traj].type(torch.FloatTensor),
+                            tracking_trajs['actions'][traj].type(torch.FloatTensor),
+                            args_dict['gamma'],
+                            torch.ones(50, 1))
+                        tracking_rewards.append(disc_rewards)
+                    else:
+                        tracking_rewards.append(tracking_trajs['rewards'][traj])
 
-                if args_dict['use_gail']:
-                    disc_rewards = discr.predict_reward(
-                        tracking_trajs['states'][traj].type(torch.FloatTensor),
-                        tracking_trajs['actions'][traj].type(torch.FloatTensor),
-                        args_dict['gamma'],
-                        torch.ones(50, 1))
-                    tracking_rewards.append(disc_rewards)
-                else:
-                    tracking_rewards.append(tracking_trajs['rewards'][traj])
+                    gae = 0
+                    adv = torch.zeros(tracking_rewards[-1].shape[0] - 1, 1)
+                    for step in reversed(range(tracking_rewards[-1].shape[0] - 1)):
+                        rewards = tracking_rewards[-1]
+                        values = tracking_values[-1]
 
-                gae = 0
-                adv = torch.zeros(tracking_rewards[-1].shape[0] - 1, 1)
-                for step in reversed(range(tracking_rewards[-1].shape[0] - 1)):
-                    rewards = tracking_rewards[-1]
-                    values = tracking_values[-1]
+                        delta = rewards[step] + args_dict['gamma'] * values[step + 1] - \
+                                values[step]
+                        gae = delta + args_dict['gamma'] * args_dict['gae_lambda'] * gae
+                        adv[step] = gae
 
-                    delta = rewards[step] + args_dict['gamma'] * values[step + 1] - \
-                            values[step]
-                    gae = delta + args_dict['gamma'] * args_dict['gae_lambda'] * gae
-                    adv[step] = gae
+                    tracking_adv.append(adv)
 
-                tracking_adv.append(adv)
-
-        tracking_adv = torch.cat(tracking_adv, dim=0)
-        tracking_adv = (tracking_adv - tracking_adv.mean()) / (
-                tracking_adv.std() + 1e-5)
-        tracking_adv = tracking_adv.type(torch.HalfTensor)
-        tracking_rewards = torch.cat(tracking_rewards, dim=0).type(torch.HalfTensor)
-        tracking_values = torch.cat(tracking_values, dim=0).type(torch.HalfTensor)
+                tracking_adv = torch.cat(tracking_adv, dim=0)
+                tracking_adv = (tracking_adv - tracking_adv.mean()) / (
+                        tracking_adv.std() + 1e-5)
+                tracking_adv = tracking_adv.type(torch.HalfTensor)
+                tracking_rewards = torch.cat(tracking_rewards, dim=0).type(torch.HalfTensor)
+                tracking_values = torch.cat(tracking_values, dim=0).type(torch.HalfTensor)
 
         if args_dict['summary']:
             writer.add_scalar('value_loss_epoch',
@@ -329,17 +337,14 @@ def main(config=None, args_dict=None):
             writer.add_scalar('entropy_mean',
                               metrics['entropy'], total_num_steps)
 
-            writer.add_histogram("expert_adv", tracking_adv, total_num_steps)
-            writer.add_histogram("expert_rewards", tracking_rewards, total_num_steps)
-            writer.add_histogram("expert_values", tracking_values, total_num_steps)
-
         if args_dict['logging']:
-            for i in range(tracking_adv.shape[0]):
-                csv_writer_adv.writerow({'total_num_steps': total_num_steps,
-                                         'pair_id': i,
-                                         'advantages': tracking_adv[i].item(),
-                                         'rewards': tracking_rewards[i].item(),
-                                         'values': tracking_values[i].item()})
+            if args_dict['track_vf']:
+                for i in range(tracking_adv.shape[0]):
+                    csv_writer_adv.writerow({'total_num_steps': total_num_steps,
+                                             'pair_id': i,
+                                             'advantages': tracking_adv[i].item(),
+                                             'rewards': tracking_rewards[i].item(),
+                                             'values': tracking_values[i].item()})
 
             csv_writer.writerow({'total_num_steps': total_num_steps,
                                  'mean_training_episode_reward': np.mean(episode_rewards),

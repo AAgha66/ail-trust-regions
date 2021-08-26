@@ -1,7 +1,7 @@
  algo: 'ppo'
 
  use_gail: True
- gail_experts_dir: 'gail_experts'
+ gail_experts_dir: './gail_experts'
  gail_batch_size: 128
  gail_epoch: 5
  lr_disc: 1.0e-5
@@ -21,13 +21,14 @@
  num_processes: 1
  num_steps: 2048
 
- policy_epoch: 20
+ policy_epoch: 10
 
  mini_batch_size: 64
  clip_param: 0.2
 
  logging: True
  summary: True
+ track_vf: False
  save_model: False
  log_interval: 1
  eval_interval: 2

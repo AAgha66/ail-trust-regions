@@ -30,6 +30,7 @@
 
  logging: True
  summary: True
+ track_vf: False
  save_model: True
  log_interval: 1
  eval_interval: 1
