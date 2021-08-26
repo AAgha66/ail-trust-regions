@@ -40,7 +40,8 @@ def main(config=None, args_dict=None):
         f_adv = open(log_dir_ + '/logs/log_adv.csv', 'w')
 
     fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards', 'value_loss_epoch',
-              'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'entropy_mean', 'entropy_diff_mean']
+              'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'vf_diff',
+              'entropy_mean', 'entropy_diff_mean']
     fnames_grads = ['total_num_steps', 'norm_grad_disc', 'acc_expert', 'acc_policy']
     fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values']
 
@@ -130,13 +131,12 @@ def main(config=None, args_dict=None):
     else:
         raise NotImplementedError("Policy optimization method not implemented!")
 
-
-
     discr = None
     gail_train_loader = None
     expert_dataset = None
     if args_dict['use_gail'] or args_dict['track_vf']:
-        file_name = args_dict['gail_experts_dir'] + args_dict['env_name'] + '_num_traj_' + str(args.num_trajs) + '.pt'
+        file_name = args_dict['gail_experts_dir'] + args_dict['env_name'] + \
+                    '_num_traj_' + str(args_dict['num_trajectories']) + '.pt'
         expert_dataset = gail.ExpertDataset(
             file_name, num_trajectories=args_dict['num_trajectories'], subsample_frequency=20)
 
@@ -171,7 +171,7 @@ def main(config=None, args_dict=None):
     gail_iters = 0
     list_eval_rewards = []
     best_eval = -np.inf
-
+    old_values = None
     for j in range(num_updates):
         if args_dict['use_linear_lr_decay']:
             # decrease learning rate linearly
@@ -275,8 +275,10 @@ def main(config=None, args_dict=None):
                 best_eval = mean_eval_episode_rewards
 
         tracking_adv = []
+        tracking_returns = []
         tracking_rewards = []
         tracking_values = []
+        vf_diff = 0
         if args_dict['track_vf']:
             tracking_trajs = expert_dataset.get_traj()
             with torch.no_grad():
@@ -297,6 +299,7 @@ def main(config=None, args_dict=None):
 
                     gae = 0
                     adv = torch.zeros(tracking_rewards[-1].shape[0] - 1, 1)
+                    ret = torch.zeros(tracking_rewards[-1].shape[0] , 1)
                     for step in reversed(range(tracking_rewards[-1].shape[0] - 1)):
                         rewards = tracking_rewards[-1]
                         values = tracking_values[-1]
@@ -305,15 +308,27 @@ def main(config=None, args_dict=None):
                                 values[step]
                         gae = delta + args_dict['gamma'] * args_dict['gae_lambda'] * gae
                         adv[step] = gae
+                        ret[step] = gae + values[step]
 
+                    ret[-1] = tracking_values[-1][-1]
                     tracking_adv.append(adv)
+                    tracking_returns.append(ret)
 
+                tracking_returns = torch.cat(tracking_returns, dim=0)
+                tracking_values = torch.cat(tracking_values, dim=0)
                 tracking_adv = torch.cat(tracking_adv, dim=0)
                 tracking_adv = (tracking_adv - tracking_adv.mean()) / (
                         tracking_adv.std() + 1e-5)
-                tracking_adv = tracking_adv.type(torch.HalfTensor)
+
+                sigma = ((tracking_values.squeeze(-1) -
+                          tracking_returns.squeeze(-1)) ** 2).sum(axis=0) / tracking_values.shape[0]
+                if old_values is not None:
+                    vf_diff = ((tracking_values - old_values) ** 2 / (2 * sigma ** 2)).sum(axis=0) / \
+                              tracking_values.shape[0]
+
                 tracking_rewards = torch.cat(tracking_rewards, dim=0).type(torch.HalfTensor)
-                tracking_values = torch.cat(tracking_values, dim=0).type(torch.HalfTensor)
+                tracking_adv = tracking_adv.type(torch.HalfTensor)
+                tracking_values = tracking_values.type(torch.HalfTensor)
 
         if args_dict['summary']:
             writer.add_scalar('value_loss_epoch',
@@ -327,6 +342,8 @@ def main(config=None, args_dict=None):
                               metrics['kl'], total_num_steps)
             writer.add_scalar('entropy_mean',
                               metrics['entropy'], total_num_steps)
+            writer.add_scalar('vf_diff',
+                              vf_diff, total_num_steps)
 
         if args_dict['logging']:
             if args_dict['track_vf']:
@@ -336,7 +353,7 @@ def main(config=None, args_dict=None):
                                              'advantages': tracking_adv[i].item(),
                                              'rewards': tracking_rewards[i].item(),
                                              'values': tracking_values[i].item()})
-
+                old_values = tracking_values
             csv_writer.writerow({'total_num_steps': total_num_steps,
                                  'mean_training_episode_reward': np.mean(episode_rewards),
                                  'mean_eval_episode_rewards': mean_eval_episode_rewards,
@@ -344,6 +361,7 @@ def main(config=None, args_dict=None):
                                  'action_loss_epoch': metrics['action_loss_epoch'],
                                  'trust_region_loss_epoch': metrics['trust_region_loss_epoch'],
                                  'kl_mean': metrics['kl'].item(),
+                                 'vf_diff': vf_diff,
                                  'entropy_mean': metrics['entropy'].item(),
                                  'entropy_diff_mean': metrics['entropy_diff'].item()})
 
@@ -363,7 +381,8 @@ def main(config=None, args_dict=None):
             f.flush()
             f_adv.flush()
             f_grads.flush()
-
+        else:
+            old_values = tracking_values
     if args_dict['summary']:
         writer.close()
     print('Finished Training: ' + str(sum(list_eval_rewards) / len(list_eval_rewards)))
