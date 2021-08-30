@@ -4,6 +4,7 @@ import torch.optim as optim
 from utils.projection_utils import compute_metrics, gaussian_kl
 from projections.projection_factory import get_projection_layer
 from models.distributions import FixedNormal
+from utils.utils import compute_kurtosis
 
 
 class PPO:
@@ -28,6 +29,7 @@ class PPO:
                  max_grad_norm=None,
                  use_clipped_value_loss=True,
                  use_projection=True,
+                 track_grad_kurtosis=False,
                  action_space=6,
                  total_train_steps=None,
                  entropy_schedule='None',
@@ -72,6 +74,7 @@ class PPO:
 
         self.rb_alpha = rb_alpha
         self.proj = None
+        self.track_grad_kurtosis = track_grad_kurtosis
         if use_projection:
             self.proj = get_projection_layer(proj_type=proj_type, mean_bound=mean_bound,
                                              cov_bound=cov_bound, trust_region_coeff=trust_region_coeff,
@@ -82,7 +85,7 @@ class PPO:
                                              entropy_first=entropy_first, do_regression=False,
                                              cpu=True, dtype=torch.float32)
 
-        self.policy_params = list(actor_critic.base.actor.parameters()) + list(actor_critic.dist.parameters())
+        self.policy_params = list(actor_critic.dist.parameters())
         self.vf_params = list(actor_critic.base.critic.parameters())
 
         self.optimizer_policy = optim.Adam(self.policy_params, lr=lr_policy, eps=eps)
@@ -90,10 +93,16 @@ class PPO:
 
         self.global_steps = 0
 
-    def train(self, advantages, rollouts):
+    def train(self, advantages, rollouts, track_kurtosis_flag):
         action_loss_epoch = 0
         trust_region_loss_epoch = 0
         value_loss_epoch = 0
+
+        on_policy_norms = []
+        off_policy_norms = []
+
+        on_policy_value_norms = []
+        off_policy_value_norms = []
 
         for e in range(self.policy_epoch):
             data_generator = rollouts.feed_forward_generator(
@@ -132,10 +141,10 @@ class PPO:
                     if self.use_kl_penalty:
                         surr1 -= self.beta * kl
                         surr2 -= self.beta * kl
-                    action_loss = -torch.min(surr1, surr2).mean()
+                    action_loss = -torch.min(surr1, surr2)
                 elif self.use_kl_penalty:
                     surr1 -= self.beta * kl
-                    action_loss = -surr1.mean()
+                    action_loss = -surr1
                 elif self.use_rollback:
                     mask_a = ratio >= 1.0 + self.clip_param
                     mask_b = ratio <= 1.0 - self.clip_param
@@ -149,7 +158,7 @@ class PPO:
                     surr_loss[mask_b] = torch.min(surr1[mask_b], surr2_b[mask_b])
                     surr_loss[mask_c] = surr1[mask_c]
 
-                    action_loss = -surr_loss.mean()
+                    action_loss = -surr_loss
                 elif self.use_tr_ppo:
                     mask = kl >= self.kl_target
                     ratio_old = torch.exp(old_action_log_probs_batch -
@@ -159,7 +168,7 @@ class PPO:
                     surr_loss = torch.ones(surr1.shape, dtype=surr1.dtype, device=surr1.device)
                     surr_loss[mask] = torch.min(surr1[mask], surr2[mask])
                     surr_loss[~mask] = surr1[~mask]
-                    action_loss = -surr_loss.mean()
+                    action_loss = -surr_loss
 
                 elif self.use_truly_ppo:
                     ratio_old = torch.exp(old_action_log_probs_batch -
@@ -172,9 +181,24 @@ class PPO:
                     surr_loss[mask] = surr1[mask] - self.rb_alpha * kl[mask]
                     surr_loss[~mask] = surr1[~mask] - self.kl_target
 
-                    action_loss = -surr_loss.mean()
+                    action_loss = -surr_loss
                 else:
-                    action_loss = -surr1.mean()
+                    action_loss = -surr1
+
+                if track_kurtosis_flag:
+                    if e == 0 or e == self.policy_epoch - 1:
+                        for batch_elt in range(action_loss.shape[0]):
+                            grad_elements = []
+                            grads = torch.autograd.grad(action_loss[batch_elt], self.policy_params, retain_graph=True)
+                            for grad in grads:
+                                grad_elements.extend(grad.reshape(-1))
+                            norm = torch.norm(torch.tensor(grad_elements), p=2)
+                            if e == 0:
+                                on_policy_norms.append(norm)
+                            elif e == self.policy_epoch - 1:
+                                off_policy_norms.append(norm)
+                    self.optimizer_policy.zero_grad()
+                action_loss = action_loss.mean()
 
                 # Trust region loss
                 trust_region_loss = None
@@ -192,10 +216,25 @@ class PPO:
                     value_losses_clipped = (
                             value_pred_clipped - return_batch).pow(2)
                     value_loss = 0.5 * torch.max(value_losses,
-                                                 value_losses_clipped).mean()
+                                                 value_losses_clipped)
                 else:
-                    value_loss = 0.5 * (return_batch - values).pow(2).mean()
+                    value_loss = 0.5 * (return_batch - values).pow(2)
 
+                if track_kurtosis_flag:
+                    if e == 0 or e == self.policy_epoch - 1:
+                        for batch_elt in range(value_loss.shape[0]):
+                            grad_elements = []
+                            grads = torch.autograd.grad(value_loss[batch_elt], self.vf_params, retain_graph=True)
+                            for grad in grads:
+                                grad_elements.extend(grad.reshape(-1))
+                            norm = torch.norm(torch.tensor(grad_elements), p=2)
+                            if e == 0:
+                                on_policy_value_norms.append(norm)
+                            elif e == self.policy_epoch - 1:
+                                off_policy_value_norms.append(norm)
+                    self.optimizer_policy.zero_grad()
+
+                value_loss = value_loss.mean()
                 self.optimizer_policy.zero_grad()
                 loss.backward()
                 if self.gradient_clipping:
@@ -216,17 +255,33 @@ class PPO:
                 if trust_region_loss:
                     trust_region_loss_epoch += trust_region_loss.item()
 
-        return action_loss_epoch, value_loss_epoch, trust_region_loss_epoch
+        on_policy_kurtosis = None
+        off_policy_kurtosis = None
+        on_policy_value_kurtosis = None
+        off_policy_value_kurtosis = None
 
-    def update(self, rollouts):
+        if track_kurtosis_flag:
+            on_policy_kurtosis = compute_kurtosis(on_policy_norms).item()
+            off_policy_kurtosis = compute_kurtosis(off_policy_norms).item()
+            on_policy_value_kurtosis = compute_kurtosis(on_policy_value_norms).item()
+            off_policy_value_kurtosis = compute_kurtosis(off_policy_value_norms).item()
+
+        return action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, \
+               on_policy_kurtosis, off_policy_kurtosis, on_policy_value_kurtosis, off_policy_value_kurtosis
+
+    def update(self, rollouts, iteration):
         self.global_steps += 1
         advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
 
         advantages = (advantages - advantages.mean()) / (
                 advantages.std() + 1e-5)
 
-        action_loss_epoch, value_loss_epoch, trust_region_loss_epoch = \
-            self.train(advantages=advantages, rollouts=rollouts)
+        track_kurtosis_flag = False
+        if self.track_grad_kurtosis:
+            track_kurtosis_flag = (iteration % 10 == 0)
+        action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, on_policy_kurtosis, off_policy_kurtosis, \
+        on_policy_value_kurtosis, off_policy_value_kurtosis = self.train(advantages=advantages, rollouts=rollouts,
+                                                                         track_kurtosis_flag=track_kurtosis_flag)
 
         # TODO: Find a nicer way to get all obs and old means and stddev
         metrics = None
@@ -251,5 +306,12 @@ class PPO:
         metrics['value_loss_epoch'] = value_loss_epoch / num_updates_value
         metrics['action_loss_epoch'] = action_loss_epoch / num_updates_policy
         metrics['trust_region_loss_epoch'] = trust_region_loss_epoch / num_updates_policy
+
+        metrics['on_policy_kurtosis'] = on_policy_kurtosis
+        metrics['off_policy_kurtosis'] = off_policy_kurtosis
+
+        metrics['on_policy_value_kurtosis'] = on_policy_value_kurtosis
+        metrics['off_policy_value_kurtosis'] = off_policy_value_kurtosis
+
         metrics['advantages'] = advantages
         return metrics

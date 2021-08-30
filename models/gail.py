@@ -62,7 +62,6 @@ class Discriminator(nn.Module):
 
         loss = 0
         n = 0
-        norm_grad = []
         acc_policy = []
         acc_expert = []
         for expert_batch, policy_batch in zip(expert_loader,
@@ -71,7 +70,7 @@ class Discriminator(nn.Module):
             policy_d = self.trunk(
                 torch.cat([policy_state, policy_action], dim=1))
 
-            acc_policy.append(torch.sum(torch.sigmoid(policy_d) < 0.5)/policy_d.shape[0])
+            acc_policy.append(torch.sum(torch.sigmoid(policy_d) < 0.5) / policy_d.shape[0])
 
             expert_state, expert_action = expert_batch
             expert_state = obsfilt(expert_state.numpy(), update=False)
@@ -90,7 +89,7 @@ class Discriminator(nn.Module):
 
             gail_loss = expert_loss + policy_loss
 
-            grad_pen=None
+            grad_pen = None
             if self.gradient_penalty:
                 grad_pen = self.compute_grad_pen(expert_state, expert_action,
                                                  policy_state, policy_action)
@@ -99,28 +98,15 @@ class Discriminator(nn.Module):
                 loss += (gail_loss).item()
             n += 1
 
-            ones = torch.ones(policy_d.size()).to(policy_d.device)
             policy_data = torch.cat([policy_state, policy_action], dim=1).detach()
             policy_data.requires_grad = True
-            disc_pol = self.trunk(policy_data)
 
-            grad_policy = autograd.grad(
-                outputs=disc_pol,
-                inputs=policy_data,
-                grad_outputs=ones,
-                create_graph=True,
-                retain_graph=True,
-                only_inputs=True)[0]
-            norm_grad_batch = torch.mean(torch.norm(grad_policy, p=2, dim=1))
-            norm_grad.append(torch.unsqueeze(norm_grad_batch, dim=0))
-
-            self.optimizer.zero_grad()
             if self.gradient_penalty:
                 (gail_loss + grad_pen).backward()
             else:
                 gail_loss.backward()
             self.optimizer.step()
-        return loss / n, norm_grad, acc_policy, acc_expert
+        return loss / n, acc_policy, acc_expert
 
     def predict_reward(self, state, action, gamma, masks, update_rms=True):
         with torch.no_grad():
@@ -128,7 +114,7 @@ class Discriminator(nn.Module):
             d = self.trunk(torch.cat([state, action], dim=1))
             s = torch.sigmoid(d)
             reward = -torch.log(1 - s + 1e-8)
-            #reward = torch.log(s) - torch.log(1 - s)
+            # reward = torch.log(s) - torch.log(1 - s)
             if self.returns is None:
                 self.returns = reward.clone()
 

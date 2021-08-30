@@ -5,6 +5,14 @@ import torch.nn as nn
 from utils.envs import VecNormalize
 
 
+def compute_kurtosis(norms):
+    m = sum(norms) / len(norms)
+    # calculate variance using a list comprehension
+    fourth_moment = sum((xi - m) ** 4 for xi in norms) / len(norms)
+    second_moment = (sum((xi - m) ** 2 for xi in norms) / len(norms)) ** 2
+    return (fourth_moment / second_moment) ** 0.25
+
+
 # Get a render function
 def get_render_func(venv):
     if hasattr(venv, 'envs'):

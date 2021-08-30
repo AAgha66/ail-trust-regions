@@ -41,8 +41,9 @@ def main(config=None, args_dict=None):
 
     fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards', 'value_loss_epoch',
               'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'vf_diff',
-              'entropy_mean', 'entropy_diff_mean']
-    fnames_grads = ['total_num_steps', 'norm_grad_disc', 'acc_expert', 'acc_policy']
+              'entropy_mean', 'entropy_diff_mean', 'on_policy_kurtosis', 'off_policy_kurtosis',
+              'on_policy_value_kurtosis', 'off_policy_value_kurtosis']
+    fnames_grads = ['total_num_steps', 'acc_expert', 'acc_policy']
     fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values']
 
     csv_writer = None
@@ -102,6 +103,7 @@ def main(config=None, args_dict=None):
             max_grad_norm=args_dict['max_grad_norm'],
             use_clipped_value_loss=args_dict['use_clipped_value_loss'],
             use_projection=args_dict['use_projection'],
+            track_grad_kurtosis=args_dict['track_grad_kurtosis'],
             action_space=envs.action_space,
             total_train_steps=num_updates,
             entropy_schedule=args_dict['entropy_schedule'],
@@ -202,7 +204,6 @@ def main(config=None, args_dict=None):
 
         with torch.no_grad():
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
-        gail_norm_grad = []
         acc_policy = []
         acc_expert = []
         if args_dict['use_gail']:
@@ -213,11 +214,10 @@ def main(config=None, args_dict=None):
             if j < 10:
                 gail_epoch = 100  # Warm up
             for _ in range(gail_epoch):
-                _, gail_norm_grad_epoch, acc_policy_epoch, acc_expert_epoch = \
+                _, acc_policy_epoch, acc_expert_epoch = \
                     discr.update(gail_train_loader, rollouts,
                                  utils.utils.get_vec_normalize(envs)._obfilt)
 
-                gail_norm_grad.extend(gail_norm_grad_epoch)
                 acc_policy.extend(acc_policy_epoch)
                 acc_expert.extend(acc_expert_epoch)
 
@@ -229,7 +229,7 @@ def main(config=None, args_dict=None):
         rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['gamma'],
                                  args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
 
-        metrics = agent.update(rollouts)
+        metrics = agent.update(rollouts, j)
 
         rollouts.after_update()
         total_num_steps = (j + 1) * args_dict['num_processes'] * args_dict['num_steps']
@@ -343,7 +343,15 @@ def main(config=None, args_dict=None):
             writer.add_scalar('entropy_mean',
                               metrics['entropy'], total_num_steps)
             writer.add_scalar('vf_diff',
-                              vf_diff, total_num_steps)
+                              vf_diff.item(), total_num_steps)
+            writer.add_scalar('on_policy_kurtosis',
+                              metrics['on_policy_kurtosis'], total_num_steps)
+            writer.add_scalar('off_policy_kurtosis',
+                              metrics['off_policy_kurtosis'], total_num_steps)
+            writer.add_scalar('on_policy_value_kurtosis',
+                              metrics['on_policy_value_kurtosis'], total_num_steps)
+            writer.add_scalar('off_policy_value_kurtosis',
+                              metrics['off_policy_value_kurtosis'], total_num_steps)
 
         if args_dict['logging']:
             if args_dict['track_vf']:
@@ -363,16 +371,17 @@ def main(config=None, args_dict=None):
                                  'kl_mean': metrics['kl'].item(),
                                  'vf_diff': vf_diff,
                                  'entropy_mean': metrics['entropy'].item(),
-                                 'entropy_diff_mean': metrics['entropy_diff'].item()})
+                                 'entropy_diff_mean': metrics['entropy_diff'].item(),
+                                 'on_policy_kurtosis': metrics['on_policy_kurtosis'],
+                                 'off_policy_kurtosis': metrics['off_policy_kurtosis'],
+                                 'on_policy_value_kurtosis': metrics['on_policy_value_kurtosis'],
+                                 'off_policy_value_kurtosis': metrics['off_policy_value_kurtosis']})
 
-            for i, _ in enumerate(gail_norm_grad):
+            for i, _ in enumerate(acc_expert):
                 csv_writer_grads.writerow({'total_num_steps': total_num_steps,
-                                           'norm_grad_disc': gail_norm_grad[i].item(),
                                            'acc_expert': acc_expert[i].item(),
                                            'acc_policy': acc_policy[i].item()})
                 if args_dict['summary']:
-                    writer.add_scalar('norm_grad_disc',
-                                      gail_norm_grad[i], gail_iters)
                     writer.add_scalar('acc_policy',
                                       acc_policy[i], gail_iters)
                     writer.add_scalar('acc_expert',

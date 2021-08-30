@@ -1,7 +1,7 @@
  algo: 'ppo'
 
  use_gail: True
- gail_experts_dir: './gail_experts'
+ gail_experts_dir: './gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
  lr_disc: 3.0e-5
@@ -16,12 +16,12 @@
  value_loss_coef: 1.0
  max_grad_norm: 0.5
 
- seed: 2
+ seed: 0
  cuda_deterministic: False
  num_processes: 1
  num_steps: 2048
 
- policy_epoch: 20
+ policy_epoch: 30
 
  mini_batch_size: 32
  clip_param: 0.2
@@ -29,6 +29,7 @@
  logging: True
  summary: True
  track_vf: False
+ track_grad_kurtosis: True
  save_model: False
  log_interval: 1
  eval_interval: 2
