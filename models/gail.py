@@ -98,9 +98,7 @@ class Discriminator(nn.Module):
                 loss += (gail_loss).item()
             n += 1
 
-            policy_data = torch.cat([policy_state, policy_action], dim=1).detach()
-            policy_data.requires_grad = True
-
+            self.optimizer.zero_grad()
             if self.gradient_penalty:
                 (gail_loss + grad_pen).backward()
             else:

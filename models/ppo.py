@@ -85,7 +85,7 @@ class PPO:
                                              entropy_first=entropy_first, do_regression=False,
                                              cpu=True, dtype=torch.float32)
 
-        self.policy_params = list(actor_critic.dist.parameters())
+        self.policy_params = list(actor_critic.base.actor.parameters()) + list(actor_critic.dist.parameters())
         self.vf_params = list(actor_critic.base.critic.parameters())
 
         self.optimizer_policy = optim.Adam(self.policy_params, lr=lr_policy, eps=eps)
