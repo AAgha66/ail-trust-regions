@@ -62,5 +62,7 @@ def objective_wrapper(trial, config):
 
 
 def run_study(config):
-    study = optuna.create_study(direction="maximize")
+    study_name = config.params['study_name'] + config.params['env_name'] 
+    storage_name = "sqlite:///{}.db".format(study_name)
+    study = optuna.create_study(direction="maximize", study_name=study_name, storage=storage_name, load_if_exists=config.params['load_if_exists'])
     study.optimize(lambda trial: objective_wrapper(trial, config), n_trials=config.params['n_trials'])
