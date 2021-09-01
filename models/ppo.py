@@ -255,10 +255,10 @@ class PPO:
                 if trust_region_loss:
                     trust_region_loss_epoch += trust_region_loss.item()
 
-        on_policy_kurtosis = None
-        off_policy_kurtosis = None
-        on_policy_value_kurtosis = None
-        off_policy_value_kurtosis = None
+        on_policy_kurtosis = 0
+        off_policy_kurtosis = 0
+        on_policy_value_kurtosis = 0
+        off_policy_value_kurtosis = 0
 
         if track_kurtosis_flag:
             on_policy_kurtosis = compute_kurtosis(on_policy_norms).item()

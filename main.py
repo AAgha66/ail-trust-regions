@@ -343,7 +343,7 @@ def main(config=None, args_dict=None):
             writer.add_scalar('entropy_mean',
                               metrics['entropy'], total_num_steps)
             writer.add_scalar('vf_diff',
-                              vf_diff.item(), total_num_steps)
+                              vf_diff, total_num_steps)
             writer.add_scalar('on_policy_kurtosis',
                               metrics['on_policy_kurtosis'], total_num_steps)
             writer.add_scalar('off_policy_kurtosis',
