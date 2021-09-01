@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,14 +8,23 @@ from stable_baselines3.common.running_mean_std import RunningMeanStd
 
 
 class Discriminator(nn.Module):
-    def __init__(self, input_dim, hidden_dim, device, gradient_penalty, lr_disc):
+    def __init__(self, input_dim, hidden_dim, device, gradient_penalty, lr_disc,
+                 spectral_norm, airl_reward):
         super(Discriminator, self).__init__()
 
         self.device = device
-        self.trunk = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim), nn.Tanh(),
-            nn.Linear(hidden_dim, hidden_dim), nn.Tanh(),
-            nn.Linear(hidden_dim, 1)).to(device)
+        assert(not (spectral_norm and gradient_penalty))
+
+        if spectral_norm:
+            self.trunk = nn.Sequential(
+                torch.nn.utils.spectral_norm(nn.Linear(input_dim, hidden_dim)), nn.Tanh(),
+                torch.nn.utils.spectral_norm(nn.Linear(hidden_dim, hidden_dim)), nn.Tanh(),
+                torch.nn.utils.spectral_norm(nn.Linear(hidden_dim, 1))).to(device)
+        else:
+            self.trunk = nn.Sequential(
+                nn.Linear(input_dim, hidden_dim), nn.Tanh(),
+                nn.Linear(hidden_dim, hidden_dim), nn.Tanh(),
+                nn.Linear(hidden_dim, 1)).to(device)
 
         self.trunk.train()
 
@@ -25,6 +33,7 @@ class Discriminator(nn.Module):
         self.returns = None
         self.ret_rms = RunningMeanStd(shape=())
         self.gradient_penalty = gradient_penalty
+        self.airl_reward = airl_reward
 
     def compute_grad_pen(self,
                          expert_state,
@@ -111,8 +120,12 @@ class Discriminator(nn.Module):
             self.eval()
             d = self.trunk(torch.cat([state, action], dim=1))
             s = torch.sigmoid(d)
-            reward = -torch.log(1 - s + 1e-8)
-            # reward = torch.log(s) - torch.log(1 - s)
+
+            if self.airl_reward:
+                reward = torch.log(s) - torch.log(1 - s)
+            else:
+                reward = -torch.log(1 - s + 1e-8)
+
             if self.returns is None:
                 self.returns = reward.clone()
 

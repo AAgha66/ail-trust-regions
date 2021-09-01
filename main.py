@@ -145,8 +145,9 @@ def main(config=None, args_dict=None):
     if args_dict['use_gail']:
         assert len(envs.observation_space.shape) == 1
         discr = gail.Discriminator(
-            envs.observation_space.shape[0] + envs.action_space.shape[0], 100,
-            device, args_dict['gradient_penalty'], lr_disc=args_dict['lr_disc'])
+            input_dim=(envs.observation_space.shape[0] + envs.action_space.shape[0]),
+            hidden_dim=100, device=device, gradient_penalty=args_dict['gradient_penalty'], lr_disc=args_dict['lr_disc'], spectral_norm=args_dict['spectral_norm'],
+            airl_reward=args_dict['airl_reward'])
         drop_last = len(expert_dataset) > args_dict['gail_batch_size']
         gail_train_loader = torch.utils.data.DataLoader(
             dataset=expert_dataset,
