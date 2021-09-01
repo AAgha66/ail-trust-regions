@@ -9,14 +9,16 @@ params:
   logging: True
   summary: False
   save_model: False
-  logging_dir: '/home/kit/anthropomatik/kn6273/Repos/hpo_logs_13.08/hpo_w2_pen/'
-  gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/ail-trust-regions/gail_experts'
+  track_vf: False
+  track_grad_kurtosis: False
+  logging_dir: '/home/kit/anthropomatik/kn6273/Repos/logs/hpo_logs_26.08/trl_ent_exp/'
+  gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/ail-trust-regions/gail_experts/'
   log_dir: '/home/kit/anthropomatik/kn6273/gym'
 ---
 # Slurm bwuni cpu
 name: "SLURM"   # MUST BE "SLURM"
 partition: "single"  # "single" for cpu, "gpu_4" or gpu_8" for gpu
-job-name: "hpoW2Pen" #this will be the experiment's name in slurm
+job-name: "trl_ent_exp" #this will be the experiment's name in slurm
 num_parallel_jobs: 100 # max number of jobs executed in parallel
 ntasks: 1   # leave that like it is
 cpus-per-task: 4   # there are 10 cores for each GPU
@@ -24,30 +26,25 @@ mem-per-cpu: 2250  # in MB
 time: 4320   # in minutes
 
 
-experiment_copy_auto_dst: "/home/kit/anthropomatik/kn6273/Repos/autodst_13.08/hpo_w2_pen/"
+experiment_copy_auto_dst: "/home/kit/anthropomatik/kn6273/Repos/autodst/autodst26.08/trl_ent_exp/"
 experiment_copy_src: "."
 
 ---
 # Experiment
-name: "hpoW2Pen"
+name: "trl_ent_exp"
 # Required: Can also be set in DEFAULT
-path: "/home/kit/anthropomatik/kn6273/Repos/optuna_logs_13.08/hpo_w2_pen"   # location to save results in
+path: "/home/kit/anthropomatik/kn6273/Repos/optuna_logs/optuna_logs_26.08/trl_ent_exp/"   # location to save results in
 repetitions: 1  # number of times one set of parameters is run
 
 # Experiment Parameters
-list:
-    config_file: ['configs/gail_trl.yaml', 'configs/gail_trl.yaml']
-    env_name: ['Walker2d-v2', 'HalfCheetah-v2']
-    
-    clip_importance_ratio: [False, False]
-    use_kl_penalty: [False, False]
-    use_rollback: [False, False]
-    use_tr_ppo: [False, False]
-    use_truly_ppo: [False, False]
-    
-    use_entropy_pen: [False, False]
-    gradient_penalty: [True, True]
+grid:
+    config_file: ['configs/gail_trl.yaml']
+    env_name: ['Ant-v2']
 
-    use_proj: [True, True]
-    proj_type: ['w2', 'w2']    
-    entropy_schedule: ['None', 'None'] 
+    clip_importance_ratio: [False]
+    use_entropy_pen: [False]
+    gradient_penalty: [False]
+
+    use_proj: [True]
+    proj_type: ['w2', 'kl']
+    entropy_schedule: ['exp']
