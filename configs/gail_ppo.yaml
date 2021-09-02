@@ -7,7 +7,9 @@
  lr_disc: 1.0e-5
  num_trajectories: 4
  gradient_penalty: False
-
+ spectral_norm: False
+ airl_reward: False
+ 
  eps: 1.0e-5
  gamma: 0.99
  use_gae: True
