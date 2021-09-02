@@ -24,6 +24,8 @@ def get_args(trial, config):
 
     args_dict['clip_importance_ratio'] = config.params['clip_importance_ratio']
     args_dict['gradient_penalty'] = config.params['gradient_penalty']
+    args_dict['spectral_norm'] = config.params['spectral_norm']
+    args_dict['airl_reward'] = config.params['airl_reward']
 
     args_dict['lr_disc'] = trial.suggest_categorical("lr_disc", [3e-6, 1.0e-5, 3.0e-5, 1e-4, 3e-4, 1e-3])
     args_dict['lr_policy'] = trial.suggest_categorical("lr_policy", [3e-5, 1.0e-4, 3.0e-4, 1.0e-3])
