@@ -114,7 +114,8 @@ def main(config=None, args_dict=None):
             gradient_clipping=args_dict['gradient_clipping'],
             mean_bound=args_dict['mean_bound'],
             cov_bound=args_dict['cov_bound'],
-            trust_region_coeff=args_dict['trust_region_coeff'])
+            trust_region_coeff=args_dict['trust_region_coeff'],
+            target_entropy=args_dict['target_entropy'])
     elif args_dict['algo'] == 'trpo':
         agent = trpo.TRPO(actor_critic=actor_critic,
                           vf_epoch=args_dict['vf_epoch'],

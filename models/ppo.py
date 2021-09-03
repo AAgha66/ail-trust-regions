@@ -41,7 +41,8 @@ class PPO:
                  mean_bound=0.03,
                  cov_bound=0.001,
                  rb_alpha=0.3,
-                 trust_region_coeff=8.0):
+                 trust_region_coeff=8.0,
+                 target_entropy=0):
 
         assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
                     use_rollback, use_tr_ppo, use_truly_ppo]) == 1
@@ -81,7 +82,7 @@ class PPO:
                                              scale_prec=scale_prec, action_dim=action_space,
                                              entropy_schedule=entropy_schedule,
                                              total_train_steps=total_train_steps,
-                                             target_entropy=0.0, temperature=0.5, entropy_eq=entropy_eq,
+                                             target_entropy=target_entropy, temperature=0.5, entropy_eq=entropy_eq,
                                              entropy_first=entropy_first, do_regression=False,
                                              cpu=True, dtype=torch.float32)
 

@@ -115,7 +115,7 @@ def get_exp_name(params):
                f"lr_d{params['lr_disc']:.2E}-" \
                f"{'pen' + str(params['gradient_penalty']) + '-'}" \
                f"{'g_clip' + str(params['gradient_clipping']) + '-'}" \
-               f"{'max_grad' + str(params['max_grad_norm']) + '-'}" \
+               f"{'target_entropy' + str(params['target_entropy']) + '-'}" \
                f"{'s' + str(params['seed']) + '-'}" \
                f"{'batch_size' + str(params['mini_batch_size']) + '-'}" \
                f"{'clip_ir' + str(params['clip_importance_ratio']) + '-'}" \
