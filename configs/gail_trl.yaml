@@ -29,9 +29,9 @@
  clip_param: 0.2
  
  logging: True
- summary: True
+ summary: False
  track_vf: False
- track_grad_kurtosis: True
+ track_grad_kurtosis: False
  save_model: False
  log_interval: 1
  eval_interval: 2
@@ -72,3 +72,4 @@
  scale_prec: True
  entropy_eq: False
  entropy_first: True
+ target_entropy: 0

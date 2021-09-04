@@ -68,7 +68,8 @@
  mean_bound: 0.03
  cov_bound: 0.001
  trust_region_coeff: 8.0
- entropy_schedule: 'linear'
+ entropy_schedule: 'None'
  scale_prec: True
  entropy_eq: False
  entropy_first: True
+ target_entropy: 0

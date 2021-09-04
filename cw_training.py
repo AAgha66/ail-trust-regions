@@ -48,6 +48,7 @@ class MyExperiment(experiment.AbstractExperiment):
             args_dict['cov_bound'] = config.params['cov_bound']
             args_dict['mean_bound'] = config.params['mean_bound']
             args_dict['trust_region_coeff'] = config.params['trust_region_coeff']
+            args_dict['target_entropy'] = config.params['target_entropy']
         main(config=None, args_dict=args_dict)
 
     def finalize(self, surrender: cw_error.ExperimentSurrender = None, crash: bool = False):

@@ -72,3 +72,4 @@
  scale_prec: True
  entropy_eq: False
  entropy_first: True
+ target_entropy: 0
