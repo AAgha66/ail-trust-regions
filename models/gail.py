@@ -122,7 +122,7 @@ class Discriminator(nn.Module):
             s = torch.sigmoid(d)
 
             if self.airl_reward:
-                reward = torch.log(s) - torch.log(1 - s)
+                reward = torch.log(s + 1e-8) - torch.log(1 - s + 1e-8)
             else:
                 reward = -torch.log(1 - s + 1e-8)
 
