@@ -45,6 +45,7 @@ def main(config=None, args_dict=None, overwrite=False):
 
     fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards', 'value_loss_epoch',
               'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'vf_diff',
+              'tracking_log_probs_mean', 'tracking_log_probs_median',
               'entropy_mean', 'entropy_diff_mean', 'on_policy_kurtosis', 'off_policy_kurtosis',
               'on_policy_value_kurtosis', 'off_policy_value_kurtosis']
     fnames_grads = ['total_num_steps', 'acc_expert', 'acc_policy']
@@ -289,14 +290,19 @@ def main(config=None, args_dict=None, overwrite=False):
         tracking_returns = []
         tracking_rewards = []
         tracking_values = []
+        tracking_log_probs = []
+
         vf_diff = 0
+        tracking_log_probs_mean = 0
+        tracking_log_probs_median = 0
         if args_dict['track_vf']:
             tracking_trajs = expert_dataset.get_traj()
             with torch.no_grad():
                 for traj in range(args_dict['num_trajectories']):
-                    values, _ = actor_critic.evaluate_actions(
+                    values, tracking_dist = actor_critic.evaluate_actions(
                         tracking_trajs['states'][traj].type(torch.FloatTensor))
                     tracking_values.append(values)
+                    tracking_log_probs.append(tracking_dist.log_probs(tracking_trajs['actions'][traj].type(torch.FloatTensor)))
 
                     if args_dict['use_gail']:
                         disc_rewards = discr.predict_reward(
@@ -310,7 +316,7 @@ def main(config=None, args_dict=None, overwrite=False):
 
                     gae = 0
                     adv = torch.zeros(tracking_rewards[-1].shape[0] - 1, 1)
-                    ret = torch.zeros(tracking_rewards[-1].shape[0] , 1)
+                    ret = torch.zeros(tracking_rewards[-1].shape[0], 1)
                     for step in reversed(range(tracking_rewards[-1].shape[0] - 1)):
                         rewards = tracking_rewards[-1]
                         values = tracking_values[-1]
@@ -327,6 +333,7 @@ def main(config=None, args_dict=None, overwrite=False):
 
                 tracking_returns = torch.cat(tracking_returns, dim=0)
                 tracking_values = torch.cat(tracking_values, dim=0)
+                tracking_log_probs = torch.cat(tracking_log_probs, dim=0)
                 tracking_adv = torch.cat(tracking_adv, dim=0)
                 tracking_adv = (tracking_adv - tracking_adv.mean()) / (
                         tracking_adv.std() + 1e-5)
@@ -334,12 +341,14 @@ def main(config=None, args_dict=None, overwrite=False):
                 sigma = ((tracking_values.squeeze(-1) -
                           tracking_returns.squeeze(-1)) ** 2).sum(axis=0) / tracking_values.shape[0]
                 if old_values is not None:
-                    vf_diff = ((tracking_values - old_values) ** 2 / (2 * sigma ** 2)).sum(axis=0) / \
+                    vf_diff = ((tracking_values - old_values) ** 2 / (2 * sigma ** 2)).sum(axis=0).item() / \
                               tracking_values.shape[0]
 
                 tracking_rewards = torch.cat(tracking_rewards, dim=0).type(torch.HalfTensor)
                 tracking_adv = tracking_adv.type(torch.HalfTensor)
                 tracking_values = tracking_values.type(torch.HalfTensor)
+                tracking_log_probs_mean = tracking_log_probs.mean().item()
+                tracking_log_probs_median = tracking_log_probs.median().item()
 
         if args_dict['summary']:
             writer.add_scalar('value_loss_epoch',
@@ -355,6 +364,10 @@ def main(config=None, args_dict=None, overwrite=False):
                               metrics['entropy'], total_num_steps)
             writer.add_scalar('vf_diff',
                               vf_diff, total_num_steps)
+            writer.add_scalar('tracking_log_probs_mean',
+                              tracking_log_probs_mean, total_num_steps)
+            writer.add_scalar('tracking_log_probs_median',
+                              tracking_log_probs_median, total_num_steps)
             writer.add_scalar('on_policy_kurtosis',
                               metrics['on_policy_kurtosis'], total_num_steps)
             writer.add_scalar('off_policy_kurtosis',
@@ -381,6 +394,8 @@ def main(config=None, args_dict=None, overwrite=False):
                                  'trust_region_loss_epoch': metrics['trust_region_loss_epoch'],
                                  'kl_mean': metrics['kl'].item(),
                                  'vf_diff': vf_diff,
+                                 'tracking_log_probs_mean': tracking_log_probs_mean,
+                                 'tracking_log_probs_median': tracking_log_probs_median,
                                  'entropy_mean': metrics['entropy'].item(),
                                  'entropy_diff_mean': metrics['entropy_diff'].item(),
                                  'on_policy_kurtosis': metrics['on_policy_kurtosis'],
