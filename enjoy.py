@@ -17,7 +17,7 @@ parser.add_argument(
 parser.add_argument(
     '--det',
     action='store_true',
-    default=False,
+    default=True,
     help='whether to use a non-deterministic policy')
 parser.add_argument(
     '--render',
@@ -31,7 +31,7 @@ parser.add_argument(
 parser.add_argument(
     '--save_expert',
     action='store_true',
-    default=False,
+    default=True,
     help='whether to use a non-deterministic policy')
 parser.add_argument(
     '--num_trajs',
