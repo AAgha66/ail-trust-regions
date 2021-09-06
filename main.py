@@ -144,8 +144,13 @@ def main(config=None, args_dict=None, overwrite=False):
     if args_dict['use_gail'] or args_dict['track_vf']:
         file_name = args_dict['gail_experts_dir'] + args_dict['env_name'] + \
                     '_num_traj_' + str(args_dict['num_trajectories']) + '.pt'
+        subsample_frequency = None
+        if args_dict['env_name'] == "Reacher-v2":
+            subsample_frequency = 1
+        else:
+            subsample_frequency = 20
         expert_dataset = gail.ExpertDataset(
-            file_name, num_trajectories=args_dict['num_trajectories'], subsample_frequency=20)
+            file_name, num_trajectories=args_dict['num_trajectories'], subsample_frequency=subsample_frequency)
 
     if args_dict['use_gail']:
         assert len(envs.observation_space.shape) == 1
