@@ -48,7 +48,7 @@ def main(config=None, args_dict=None, overwrite=False):
               'tracking_log_probs_mean', 'tracking_log_probs_median',
               'entropy_mean', 'entropy_diff_mean', 'on_policy_kurtosis', 'off_policy_kurtosis',
               'on_policy_value_kurtosis', 'off_policy_value_kurtosis']
-    fnames_grads = ['total_num_steps', 'acc_expert', 'acc_policy']
+    fnames_grads = ['iteration', 'total_num_steps', 'disc_grad_norm', 'acc_expert', 'acc_policy']
     fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values']
 
     csv_writer = None
@@ -218,6 +218,7 @@ def main(config=None, args_dict=None, overwrite=False):
             next_value = actor_critic.get_value(rollouts.obs[-1]).detach()
         acc_policy = []
         acc_expert = []
+        disc_grad_norm = []
         if args_dict['use_gail']:
             if j >= 10:
                 envs.venv.eval()
@@ -226,13 +227,13 @@ def main(config=None, args_dict=None, overwrite=False):
             if j < 10:
                 gail_epoch = 100  # Warm up
             for _ in range(gail_epoch):
-                _, acc_policy_epoch, acc_expert_epoch = \
+                _, disc_grad_norm_epoch, acc_policy_epoch, acc_expert_epoch = \
                     discr.update(gail_train_loader, rollouts,
                                  utils.utils.get_vec_normalize(envs)._obfilt)
 
                 acc_policy.extend(acc_policy_epoch)
                 acc_expert.extend(acc_expert_epoch)
-
+                disc_grad_norm.extend(disc_grad_norm_epoch)
             for step in range(args_dict['num_steps']):
                 rollouts.rewards[step] = discr.predict_reward(
                     rollouts.obs[step], rollouts.actions[step], args_dict['gamma'],
@@ -404,14 +405,18 @@ def main(config=None, args_dict=None, overwrite=False):
                                  'off_policy_value_kurtosis': metrics['off_policy_value_kurtosis']})
 
             for i, _ in enumerate(acc_expert):
-                csv_writer_grads.writerow({'total_num_steps': total_num_steps,
+                csv_writer_grads.writerow({'iteration': i,
+                                           'total_num_steps': total_num_steps,
                                            'acc_expert': acc_expert[i].item(),
-                                           'acc_policy': acc_policy[i].item()})
+                                           'acc_policy': acc_policy[i].item(),
+                                           'disc_grad_norm': disc_grad_norm[i]})
                 if args_dict['summary']:
                     writer.add_scalar('acc_policy',
                                       acc_policy[i], gail_iters)
                     writer.add_scalar('acc_expert',
                                       acc_expert[i], gail_iters)
+                    writer.add_scalar('disc_grad_norm',
+                                      disc_grad_norm[i], gail_iters)
                 gail_iters += 1
             f.flush()
             f_adv.flush()

@@ -73,6 +73,7 @@ class Discriminator(nn.Module):
         n = 0
         acc_policy = []
         acc_expert = []
+        grad_norms = []
         for expert_batch, policy_batch in zip(expert_loader,
                                               policy_data_generator):
             policy_state, policy_action = policy_batch[0], policy_batch[1]
@@ -113,7 +114,13 @@ class Discriminator(nn.Module):
             else:
                 gail_loss.backward()
             self.optimizer.step()
-        return loss / n, acc_policy, acc_expert
+
+            total_norm = 0
+            for p in self.trunk.parameters():
+                param_norm = p.grad.data.norm(2)
+                total_norm += param_norm.item() ** 2
+            grad_norms.append(total_norm ** (1. / 2))
+        return loss / n, grad_norms, acc_policy, acc_expert
 
     def predict_reward(self, state, action, gamma, masks, update_rms=True):
         with torch.no_grad():
