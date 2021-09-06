@@ -27,6 +27,7 @@ def main(config=None, args_dict=None, overwrite=False):
     f = None
     f_grads = None
     f_adv = None
+    f_policy_grads=None
     if args_dict['logging']:
         if os.path.isdir(log_dir_):
             if overwrite:
@@ -41,17 +42,21 @@ def main(config=None, args_dict=None, overwrite=False):
 
         f = open(log_dir_ + '/logs/log.csv', 'w')
         f_grads = open(log_dir_ + '/logs/log_grads.csv', 'w')
+        f_policy_grads = open(log_dir_ + '/logs/log_policy_grads.csv', 'w')
         f_adv = open(log_dir_ + '/logs/log_adv.csv', 'w')
 
     fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards', 'value_loss_epoch',
               'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'vf_diff',
               'tracking_log_probs_mean', 'tracking_log_probs_median',
-              'entropy_mean', 'entropy_diff_mean', 'on_policy_kurtosis', 'off_policy_kurtosis',
-              'on_policy_value_kurtosis', 'off_policy_value_kurtosis']
+              'entropy_mean', 'entropy_diff_mean', 'on_policy_kurtosis',
+              'off_policy_kurtosis', 'on_policy_value_kurtosis',
+              'off_policy_value_kurtosis']
+    fnames_policy_grads = ['iteration', 'total_num_steps', 'policy_grad_norm', 'critic_grad_norm']
     fnames_grads = ['iteration', 'total_num_steps', 'disc_grad_norm', 'acc_expert', 'acc_policy']
     fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values']
 
     csv_writer = None
+    csv_writer_policy_grads = None
     csv_writer_grads = None
     csv_writer_adv = None
     if args_dict['logging']:
@@ -61,6 +66,8 @@ def main(config=None, args_dict=None, overwrite=False):
         csv_writer_grads.writeheader()
         csv_writer_adv = csv.DictWriter(f_adv, fieldnames=fnames_adv)
         csv_writer_adv.writeheader()
+        csv_writer_policy_grads = csv.DictWriter(f_policy_grads, fieldnames=fnames_policy_grads)
+        csv_writer_policy_grads.writeheader()
         with open(log_dir_ + '/args.yml', 'w') as outfile:
             yaml.dump(args_dict, outfile, default_flow_style=False)
 
@@ -183,6 +190,7 @@ def main(config=None, args_dict=None, overwrite=False):
 
     # variables needed for tracking the gradients values in the tensorboard
     gail_iters = 0
+    policy_iters = 0
     list_eval_rewards = []
     best_eval = -np.inf
     old_values = None
@@ -404,8 +412,20 @@ def main(config=None, args_dict=None, overwrite=False):
                                  'on_policy_value_kurtosis': metrics['on_policy_value_kurtosis'],
                                  'off_policy_value_kurtosis': metrics['off_policy_value_kurtosis']})
 
+            for i, _ in enumerate(metrics['policy_grad_norms']):
+                csv_writer_policy_grads.writerow({'iteration': policy_iters,
+                                                  'total_num_steps': total_num_steps,
+                                                  'policy_grad_norm': metrics['policy_grad_norms'][i],
+                                                  'critic_grad_norm': metrics['critic_grad_norms'][i]})
+                if args_dict['summary']:
+                    writer.add_scalar('policy_grad_norm',
+                                      metrics['policy_grad_norms'][i], policy_iters)
+                    writer.add_scalar('critic_grad_norm',
+                                      metrics['critic_grad_norms'][i], policy_iters)
+                policy_iters += 1
+
             for i, _ in enumerate(acc_expert):
-                csv_writer_grads.writerow({'iteration': i,
+                csv_writer_grads.writerow({'iteration': gail_iters,
                                            'total_num_steps': total_num_steps,
                                            'acc_expert': acc_expert[i].item(),
                                            'acc_policy': acc_policy[i].item(),

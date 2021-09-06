@@ -104,6 +104,8 @@ class PPO:
 
         on_policy_value_norms = []
         off_policy_value_norms = []
+        policy_grad_norms = []
+        critic_grad_norms = []
 
         for e in range(self.policy_epoch):
             data_generator = rollouts.feed_forward_generator(
@@ -242,6 +244,13 @@ class PPO:
                     nn.utils.clip_grad_norm_(self.policy_params,
                                              self.max_grad_norm)
                 self.optimizer_policy.step()
+                total_policy_norm = 0
+                total_critic_norm = 0
+
+                for p in self.policy_params:
+                    param_norm = p.grad.data.norm(2)
+                    total_policy_norm += param_norm.item() ** 2
+                policy_grad_norms.append(total_policy_norm ** (1. / 2))
 
                 self.optimizer_vf.zero_grad()
                 value_loss.backward()
@@ -249,6 +258,10 @@ class PPO:
                     nn.utils.clip_grad_norm_(self.vf_params,
                                              self.max_grad_norm)
                 self.optimizer_vf.step()
+                for p in self.vf_params:
+                    param_norm = p.grad.data.norm(2)
+                    total_critic_norm += param_norm.item() ** 2
+                critic_grad_norms.append(total_critic_norm ** (1. / 2))
 
                 value_loss_epoch += value_loss.item()
                 action_loss_epoch += action_loss.item()
@@ -268,7 +281,8 @@ class PPO:
             off_policy_value_kurtosis = compute_kurtosis(off_policy_value_norms).item()
 
         return action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, \
-               on_policy_kurtosis, off_policy_kurtosis, on_policy_value_kurtosis, off_policy_value_kurtosis
+               on_policy_kurtosis, off_policy_kurtosis, on_policy_value_kurtosis, \
+               off_policy_value_kurtosis, policy_grad_norms, critic_grad_norms
 
     def update(self, rollouts, iteration):
         self.global_steps += 1
@@ -280,9 +294,11 @@ class PPO:
         track_kurtosis_flag = False
         if self.track_grad_kurtosis:
             track_kurtosis_flag = (iteration % 10 == 0)
-        action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, on_policy_kurtosis, off_policy_kurtosis, \
-        on_policy_value_kurtosis, off_policy_value_kurtosis = self.train(advantages=advantages, rollouts=rollouts,
-                                                                         track_kurtosis_flag=track_kurtosis_flag)
+        action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, on_policy_kurtosis, \
+        off_policy_kurtosis, on_policy_value_kurtosis, off_policy_value_kurtosis, \
+        policy_grad_norms, critic_grad_norms = self.train(advantages=advantages,
+                                                          rollouts=rollouts,
+                                                          track_kurtosis_flag=track_kurtosis_flag)
 
         # TODO: Find a nicer way to get all obs and old means and stddev
         metrics = None
@@ -313,6 +329,9 @@ class PPO:
 
         metrics['on_policy_value_kurtosis'] = on_policy_value_kurtosis
         metrics['off_policy_value_kurtosis'] = off_policy_value_kurtosis
+
+        metrics['policy_grad_norms'] = policy_grad_norms
+        metrics['critic_grad_norms'] = critic_grad_norms
 
         metrics['advantages'] = advantages
         return metrics
