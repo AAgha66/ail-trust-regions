@@ -1,5 +1,6 @@
 import argparse
 import os
+import shutil
 import time
 from collections import deque
 import csv
@@ -16,7 +17,7 @@ from evaluation import evaluate
 from torch.utils.tensorboard import SummaryWriter
 
 
-def main(config=None, args_dict=None):
+def main(config=None, args_dict=None, overwrite=False):
     if args_dict is None:
         args_dict = get_args_dict(config=config)
 
@@ -28,12 +29,15 @@ def main(config=None, args_dict=None):
     f_adv = None
     if args_dict['logging']:
         if os.path.isdir(log_dir_):
-            print("experiment already exists !")
-            return
-        else:
-            os.makedirs(log_dir_)
-            os.makedirs(log_dir_ + '/summary')
-            os.makedirs(log_dir_ + '/logs')
+            if overwrite:
+                shutil.rmtree(log_dir_)
+            else:
+                print("experiment already exists !")
+                return
+
+        os.makedirs(log_dir_)
+        os.makedirs(log_dir_ + '/summary')
+        os.makedirs(log_dir_ + '/logs')
 
         f = open(log_dir_ + '/logs/log.csv', 'w')
         f_grads = open(log_dir_ + '/logs/log_grads.csv', 'w')
@@ -404,5 +408,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='RL')
     parser.add_argument(
         '--config', default='configs/ppo.yaml', help='config file with training parameters')
+    parser.add_argument('-o', dest='overwrite', action='store_true')
+
     args = parser.parse_args()
-    main(config=args.config)
+    main(config=args.config, overwrite=args.overwrite)
