@@ -33,6 +33,8 @@ class MyExperiment(experiment.AbstractExperiment):
         args_dict['use_tr_ppo'] = config.params['use_tr_ppo']
         args_dict['use_truly_ppo'] = config.params['use_truly_ppo']
         args_dict['gradient_penalty'] = config.params['gradient_penalty']
+        args_dict['spectral_norm'] = config.params['spectral_norm']
+        args_dict['airl_reward'] = config.params['airl_reward']
 
         args_dict['lr_disc'] = config.params['lr_disc']
         args_dict['lr_policy'] = config.params['lr_policy']
