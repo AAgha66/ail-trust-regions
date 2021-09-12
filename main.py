@@ -15,7 +15,7 @@ from models.model import Policy
 from utils.storage import RolloutStorage
 from evaluation import evaluate
 from torch.utils.tensorboard import SummaryWriter
-
+import mj_envs
 
 def main(config=None, args_dict=None, overwrite=False):
     if args_dict is None:
@@ -27,7 +27,7 @@ def main(config=None, args_dict=None, overwrite=False):
     f = None
     f_grads = None
     f_adv = None
-    f_policy_grads=None
+    f_policy_grads = None
     if args_dict['logging']:
         if os.path.isdir(log_dir_):
             if overwrite:
@@ -39,6 +39,7 @@ def main(config=None, args_dict=None, overwrite=False):
         os.makedirs(log_dir_)
         os.makedirs(log_dir_ + '/summary')
         os.makedirs(log_dir_ + '/logs')
+        os.makedirs(log_dir_ + '/models')
 
         f = open(log_dir_ + '/logs/log.csv', 'w')
         f_grads = open(log_dir_ + '/logs/log_grads.csv', 'w')
@@ -155,6 +156,8 @@ def main(config=None, args_dict=None, overwrite=False):
         subsample_frequency = None
         if args_dict['env_name'] == "Reacher-v2":
             subsample_frequency = 1
+        elif args_dict['env_name'] == "door-v0" or args_dict['env_name'] == "hammer-v0":
+            subsample_frequency = 4
         else:
             subsample_frequency = 20
         expert_dataset = gail.ExpertDataset(
@@ -282,16 +285,10 @@ def main(config=None, args_dict=None, overwrite=False):
                                   mean_eval_episode_rewards, total_num_steps)
             # save for every interval-th episode or for the last epoch
             if args_dict['save_model'] and mean_eval_episode_rewards >= best_eval:
-                save_path = log_dir_ + '/models'
-                try:
-                    os.makedirs(save_path)
-                except OSError:
-                    pass
-
                 torch.save([
                     actor_critic,
                     getattr(utils.utils.get_vec_normalize(envs), 'obs_rms', None)
-                ], os.path.join(save_path, args_dict['env_name'] + ".pt"))
+                ], os.path.join(log_dir_ + '/models', args_dict['env_name'] + ".pt"))
 
                 best_eval = mean_eval_episode_rewards
 
@@ -308,8 +305,9 @@ def main(config=None, args_dict=None, overwrite=False):
             tracking_trajs = expert_dataset.get_traj()
             with torch.no_grad():
                 for traj in range(args_dict['num_trajectories']):
-                    values, tracking_dist = actor_critic.evaluate_actions(
-                        tracking_trajs['states'][traj].type(torch.FloatTensor))
+                    normalized_expert_state = utils.utils.get_vec_normalize(envs)._obfilt(tracking_trajs['states'][traj].type(torch.FloatTensor).numpy(), update=False)
+                    normalized_expert_state = torch.FloatTensor(normalized_expert_state).to(device)
+                    values, tracking_dist = actor_critic.evaluate_actions(normalized_expert_state)
                     tracking_values.append(values)
                     tracking_log_probs.append(tracking_dist.log_probs(tracking_trajs['actions'][traj].type(torch.FloatTensor)))
 
@@ -377,14 +375,15 @@ def main(config=None, args_dict=None, overwrite=False):
                               tracking_log_probs_mean, total_num_steps)
             writer.add_scalar('tracking_log_probs_median',
                               tracking_log_probs_median, total_num_steps)
-            writer.add_scalar('on_policy_kurtosis',
-                              metrics['on_policy_kurtosis'], total_num_steps)
-            writer.add_scalar('off_policy_kurtosis',
-                              metrics['off_policy_kurtosis'], total_num_steps)
-            writer.add_scalar('on_policy_value_kurtosis',
-                              metrics['on_policy_value_kurtosis'], total_num_steps)
-            writer.add_scalar('off_policy_value_kurtosis',
-                              metrics['off_policy_value_kurtosis'], total_num_steps)
+            if(metrics['on_policy_kurtosis']):
+                writer.add_scalar('on_policy_kurtosis',
+                                  metrics['on_policy_kurtosis'], total_num_steps)
+                writer.add_scalar('off_policy_kurtosis',
+                                  metrics['off_policy_kurtosis'], total_num_steps)
+                writer.add_scalar('on_policy_value_kurtosis',
+                                  metrics['on_policy_value_kurtosis'], total_num_steps)
+                writer.add_scalar('off_policy_value_kurtosis',
+                                  metrics['off_policy_value_kurtosis'], total_num_steps)
 
         if args_dict['logging']:
             if args_dict['track_vf']:
@@ -441,6 +440,7 @@ def main(config=None, args_dict=None, overwrite=False):
             f.flush()
             f_adv.flush()
             f_grads.flush()
+            f_policy_grads.flush()
         else:
             old_values = tracking_values
     if args_dict['summary']:

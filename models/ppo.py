@@ -191,16 +191,17 @@ class PPO:
                 if track_kurtosis_flag:
                     if e == 0 or e == self.policy_epoch - 1:
                         for batch_elt in range(action_loss.shape[0]):
-                            grad_elements = []
-                            grads = torch.autograd.grad(action_loss[batch_elt], self.policy_params, retain_graph=True)
-                            for grad in grads:
-                                grad_elements.extend(grad.reshape(-1))
-                            norm = torch.norm(torch.tensor(grad_elements), p=2)
+                            total_norm = 0
+                            action_loss[batch_elt].backward(retain_graph=True)
+                            for p in self.policy_params:
+                                param_norm = p.grad.data.norm(2)
+                                total_norm += param_norm.item() ** 2
                             if e == 0:
-                                on_policy_norms.append(norm)
+                                on_policy_norms.append(total_norm ** (1. / 2))
                             elif e == self.policy_epoch - 1:
-                                off_policy_norms.append(norm)
-                    self.optimizer_policy.zero_grad()
+                                off_policy_norms.append(total_norm ** (1. / 2))
+                            self.optimizer_policy.zero_grad()
+
                 action_loss = action_loss.mean()
 
                 # Trust region loss
@@ -226,16 +227,16 @@ class PPO:
                 if track_kurtosis_flag:
                     if e == 0 or e == self.policy_epoch - 1:
                         for batch_elt in range(value_loss.shape[0]):
-                            grad_elements = []
-                            grads = torch.autograd.grad(value_loss[batch_elt], self.vf_params, retain_graph=True)
-                            for grad in grads:
-                                grad_elements.extend(grad.reshape(-1))
-                            norm = torch.norm(torch.tensor(grad_elements), p=2)
+                            total_norm = 0
+                            value_loss[batch_elt].backward(retain_graph=True)
+                            for p in self.vf_params:
+                                param_norm = p.grad.data.norm(2)
+                                total_norm += param_norm.item() ** 2
                             if e == 0:
-                                on_policy_value_norms.append(norm)
+                                on_policy_value_norms.append(total_norm ** (1. / 2))
                             elif e == self.policy_epoch - 1:
-                                off_policy_value_norms.append(norm)
-                    self.optimizer_policy.zero_grad()
+                                off_policy_value_norms.append(total_norm ** (1. / 2))
+                            self.optimizer_vf.zero_grad()
 
                 value_loss = value_loss.mean()
                 self.optimizer_policy.zero_grad()
@@ -269,16 +270,16 @@ class PPO:
                 if trust_region_loss:
                     trust_region_loss_epoch += trust_region_loss.item()
 
-        on_policy_kurtosis = 0
-        off_policy_kurtosis = 0
-        on_policy_value_kurtosis = 0
-        off_policy_value_kurtosis = 0
+        on_policy_kurtosis = None
+        off_policy_kurtosis = None
+        on_policy_value_kurtosis = None
+        off_policy_value_kurtosis = None
 
         if track_kurtosis_flag:
-            on_policy_kurtosis = compute_kurtosis(on_policy_norms).item()
-            off_policy_kurtosis = compute_kurtosis(off_policy_norms).item()
-            on_policy_value_kurtosis = compute_kurtosis(on_policy_value_norms).item()
-            off_policy_value_kurtosis = compute_kurtosis(off_policy_value_norms).item()
+            on_policy_kurtosis = compute_kurtosis(on_policy_norms)
+            off_policy_kurtosis = compute_kurtosis(off_policy_norms)
+            on_policy_value_kurtosis = compute_kurtosis(on_policy_value_norms)
+            off_policy_value_kurtosis = compute_kurtosis(off_policy_value_norms)
 
         return action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, \
                on_policy_kurtosis, off_policy_kurtosis, on_policy_value_kurtosis, \
@@ -293,7 +294,7 @@ class PPO:
 
         track_kurtosis_flag = False
         if self.track_grad_kurtosis:
-            track_kurtosis_flag = (iteration % 10 == 0)
+            track_kurtosis_flag = (iteration % 20 == 0)
         action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, on_policy_kurtosis, \
         off_policy_kurtosis, on_policy_value_kurtosis, off_policy_value_kurtosis, \
         policy_grad_norms, critic_grad_norms = self.train(advantages=advantages,
