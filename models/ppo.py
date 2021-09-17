@@ -47,7 +47,7 @@ class PPO:
         """assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
                     use_rollback, use_tr_ppo, use_truly_ppo]) == 1"""
 
-        self.use_gmom = False
+        self.use_gmom = True
         self.num_blocks = 8
         self.weiszfeld_iterations = 100
 
@@ -241,34 +241,34 @@ class PPO:
 
                 if self.use_gmom:
                     grads = []
-                    mu = []
+                    flattened_mu = torch.tensor([])
                     size_b = action_loss.shape[0] / self.num_blocks
                     for block in range(self.num_blocks):
                         block_loss = action_loss[int(block * size_b): int((block + 1) * size_b - 1)].mean()
                         block_loss.backward(retain_graph=True)
-                        block_grads = []
+                        flattened_grads = torch.tensor([])
                         for p in self.policy_params:
-                            block_grads.append(p.grad.clone())
+                            flattened_grads = torch.cat([flattened_grads, torch.flatten(p.grad.clone())])
                             if block == 0:
-                                mu.append(torch.rand(block_grads[-1].shape))
-                        grads.append(block_grads)
+                                random_tensor = torch.rand(p.grad.shape)
+                                flattened_mu = torch.cat([flattened_mu,
+                                                          torch.flatten(random_tensor)])
+                        grads.append(flattened_grads)
                         self.optimizer_policy.zero_grad()
                     #WEISZFELD Algorithm (https://arxiv.org/pdf/2102.10264.pdf page 15)
-                    for i in range(self.weiszfeld_iterations):
+                    for w_iter in range(self.weiszfeld_iterations):
                         d_j = []
                         for block in range(self.num_blocks):
-                            total_norm = 0
-                            for counter, _ in enumerate(mu):
-                                param_norm = (mu[counter] - grads[block][counter]).norm(2)
-                                total_norm += param_norm.item() ** 2
-                            d_j.append(1.0 / total_norm ** (1. / 2))
-                        for counter, _ in enumerate(mu):
-                            mu[counter] = torch.zeros(mu[counter].shape)
-                            for block in range(self.num_blocks):
-                                mu[counter] += grads[block][counter] * d_j[block]
-                            mu[counter] = mu[counter] / sum(d_j)
-                    for counter, _ in enumerate(self.policy_params):
-                        self.policy_params[counter].grad = mu[counter].clone()
+                            d_j.append(1.0 / (flattened_mu - grads[block]).norm(2).item())
+                        flattened_mu = torch.zeros(flattened_mu.shape)
+                        for block in range(self.num_blocks):
+                            flattened_mu += grads[block] * d_j[block]
+                        flattened_mu = flattened_mu / sum(d_j)
+                    k = 0
+                    for p in self.policy_params:
+                        p.grad = torch.reshape(flattened_mu[k:k + p.grad.numel()].clone(),
+                                               p.grad.shape)
+                        k += p.grad.numel()
                     action_loss = action_loss.mean()
                 else:
                     action_loss = action_loss.mean()
