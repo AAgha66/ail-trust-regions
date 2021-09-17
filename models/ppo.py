@@ -44,8 +44,12 @@ class PPO:
                  trust_region_coeff=8.0,
                  target_entropy=0):
 
-        assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
-                    use_rollback, use_tr_ppo, use_truly_ppo]) == 1
+        """assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
+                    use_rollback, use_tr_ppo, use_truly_ppo]) == 1"""
+
+        self.use_gmom = False
+        self.num_blocks = 8
+        self.weiszfeld_iterations = 100
 
         self.actor_critic = actor_critic
 
@@ -202,16 +206,10 @@ class PPO:
                                 off_policy_norms.append(total_norm ** (1. / 2))
                             self.optimizer_policy.zero_grad()
 
-                action_loss = action_loss.mean()
-
                 # Trust region loss
                 trust_region_loss = None
                 if self.proj is not None:
                     trust_region_loss = self.proj.get_trust_region_loss(dist, new_dist)
-
-                loss = action_loss - dist_entropy * self.entropy_coef
-                if self.proj is not None:
-                    loss += trust_region_loss
 
                 if self.use_clipped_value_loss:
                     value_pred_clipped = value_preds_batch + \
@@ -240,7 +238,45 @@ class PPO:
 
                 value_loss = value_loss.mean()
                 self.optimizer_policy.zero_grad()
-                loss.backward()
+
+                if self.use_gmom:
+                    grads = []
+                    mu = []
+                    size_b = action_loss.shape[0] / self.num_blocks
+                    for block in range(self.num_blocks):
+                        block_loss = action_loss[int(block * size_b): int((block + 1) * size_b - 1)].mean()
+                        block_loss.backward(retain_graph=True)
+                        block_grads = []
+                        for p in self.policy_params:
+                            block_grads.append(p.grad.clone())
+                            if block == 0:
+                                mu.append(torch.rand(block_grads[-1].shape))
+                        grads.append(block_grads)
+                        self.optimizer_policy.zero_grad()
+                    #WEISZFELD Algorithm (https://arxiv.org/pdf/2102.10264.pdf page 15)
+                    for i in range(self.weiszfeld_iterations):
+                        d_j = []
+                        for block in range(self.num_blocks):
+                            total_norm = 0
+                            for counter, _ in enumerate(mu):
+                                param_norm = (mu[counter] - grads[block][counter]).norm(2)
+                                total_norm += param_norm.item() ** 2
+                            d_j.append(1.0 / total_norm ** (1. / 2))
+                        for counter, _ in enumerate(mu):
+                            mu[counter] = torch.zeros(mu[counter].shape)
+                            for block in range(self.num_blocks):
+                                mu[counter] += grads[block][counter] * d_j[block]
+                            mu[counter] = mu[counter] / sum(d_j)
+                    for counter, _ in enumerate(self.policy_params):
+                        self.policy_params[counter].grad = mu[counter].clone()
+                    action_loss = action_loss.mean()
+                else:
+                    action_loss = action_loss.mean()
+                    loss = action_loss - dist_entropy * self.entropy_coef
+                    if self.proj is not None:
+                        loss += trust_region_loss
+                    loss.backward()
+
                 if self.gradient_clipping:
                     nn.utils.clip_grad_norm_(self.policy_params,
                                              self.max_grad_norm)
@@ -265,7 +301,7 @@ class PPO:
                 critic_grad_norms.append(total_critic_norm ** (1. / 2))
 
                 value_loss_epoch += value_loss.item()
-                action_loss_epoch += action_loss.item()
+                action_loss_epoch += action_loss.mean().item()
 
                 if trust_region_loss:
                     trust_region_loss_epoch += trust_region_loss.item()
