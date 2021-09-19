@@ -33,8 +33,8 @@
  track_vf: False
  track_grad_kurtosis: False
  save_model: False
- log_interval: 1
- eval_interval: 2
+ log_interval: 2
+ eval_interval: 4
  
  num_env_steps: 1.5e+6
  env_name: 'HalfCheetah-v2'
