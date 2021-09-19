@@ -124,6 +124,7 @@ def main(config=None, args_dict=None, overwrite=False):
             entropy_eq=args_dict['entropy_eq'],
             entropy_first=args_dict['entropy_first'],
             clip_importance_ratio=args_dict['clip_importance_ratio'],
+            use_gmom=args_dict['use_gmom'],
             gradient_clipping=args_dict['gradient_clipping'],
             mean_bound=args_dict['mean_bound'],
             cov_bound=args_dict['cov_bound'],

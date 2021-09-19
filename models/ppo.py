@@ -37,6 +37,7 @@ class PPO:
                  entropy_eq=False,
                  entropy_first=True,
                  clip_importance_ratio=True,
+                 use_gmom=False,
                  gradient_clipping=False,
                  mean_bound=0.03,
                  cov_bound=0.001,
@@ -47,7 +48,7 @@ class PPO:
         assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
                     use_rollback, use_tr_ppo, use_truly_ppo]) == 1
 
-        self.use_gmom = True
+        self.use_gmom = use_gmom
         self.num_blocks = 8
         self.weiszfeld_iterations = 100
 

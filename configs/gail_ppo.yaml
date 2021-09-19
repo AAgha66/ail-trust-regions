@@ -58,6 +58,7 @@
  use_rollback: False
  use_tr_ppo: False
  use_truly_ppo: False
+ use_gmom: False
 
  rb_alpha: 0.3
  kl_target: 0.35
