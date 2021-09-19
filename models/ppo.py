@@ -44,8 +44,8 @@ class PPO:
                  trust_region_coeff=8.0,
                  target_entropy=0):
 
-        """assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
-                    use_rollback, use_tr_ppo, use_truly_ppo]) == 1"""
+        assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
+                    use_rollback, use_tr_ppo, use_truly_ppo]) == 1
 
         self.use_gmom = True
         self.num_blocks = 8
@@ -244,7 +244,10 @@ class PPO:
                     flattened_mu = torch.tensor([])
                     size_b = action_loss.shape[0] / self.num_blocks
                     for block in range(self.num_blocks):
-                        block_loss = action_loss[int(block * size_b): int((block + 1) * size_b - 1)].mean()
+                        block_loss = action_loss[int(block * size_b): int((block + 1) * size_b - 1)].mean() - \
+                                     dist_entropy * self.entropy_coef
+                        if self.proj is not None:
+                            block_loss += trust_region_loss
                         block_loss.backward(retain_graph=True)
                         flattened_grads = torch.tensor([])
                         for p in self.policy_params:
@@ -258,10 +261,10 @@ class PPO:
                     #WEISZFELD Algorithm (https://arxiv.org/pdf/2102.10264.pdf page 15)
                     for w_iter in range(self.weiszfeld_iterations):
                         d_j = []
-                        for block in range(self.num_blocks):
-                            d_j.append(1.0 / (flattened_mu - grads[block]).norm(2).item())
+                        flattened_mu_old = flattened_mu.clone()
                         flattened_mu = torch.zeros(flattened_mu.shape)
                         for block in range(self.num_blocks):
+                            d_j.append(1.0 / (flattened_mu_old - grads[block]).norm(2).item())
                             flattened_mu += grads[block] * d_j[block]
                         flattened_mu = flattened_mu / sum(d_j)
                     k = 0
