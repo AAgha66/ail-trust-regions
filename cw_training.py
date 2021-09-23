@@ -22,19 +22,21 @@ class MyExperiment(experiment.AbstractExperiment):
         args_dict['log_dir'] = config.params['log_dir']
         args_dict['num_trajectories'] = config.params['num_trajectories']
         args_dict['num_env_steps'] = config.params['num_env_steps']
+        
+        args_dict['num_steps'] = config.params['num_steps']
+        args_dict['policy_epoch'] = config.params['policy_epoch']
+        args_dict['mini_batch_size'] = config.params['mini_batch_size']
 
         args_dict['logging_dir'] = config.params['logging_dir']
         args_dict['seed'] = config.params['seed']
         args_dict['env_name'] = config.params['env_name']
 
         args_dict['clip_importance_ratio'] = config.params['clip_importance_ratio']
-        args_dict['use_kl_penalty'] = config.params['use_kl_penalty']
-        args_dict['use_rollback'] = config.params['use_rollback']
-        args_dict['use_tr_ppo'] = config.params['use_tr_ppo']
-        args_dict['use_truly_ppo'] = config.params['use_truly_ppo']
         args_dict['gradient_penalty'] = config.params['gradient_penalty']
         args_dict['spectral_norm'] = config.params['spectral_norm']
         args_dict['airl_reward'] = config.params['airl_reward']
+        args_dict['use_gmom'] = config.params['use_gmom']
+        args_dict['gradient_clipping'] = config.params['gradient_clipping']
 
         args_dict['lr_disc'] = config.params['lr_disc']
         args_dict['lr_policy'] = config.params['lr_policy']
@@ -50,7 +52,6 @@ class MyExperiment(experiment.AbstractExperiment):
             args_dict['cov_bound'] = config.params['cov_bound']
             args_dict['mean_bound'] = config.params['mean_bound']
             args_dict['trust_region_coeff'] = config.params['trust_region_coeff']
-            args_dict['target_entropy'] = config.params['target_entropy']
         main(config=None, args_dict=args_dict)
 
     def finalize(self, surrender: cw_error.ExperimentSurrender = None, crash: bool = False):
