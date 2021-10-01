@@ -59,6 +59,7 @@
  use_tr_ppo: False
  use_truly_ppo: False
  use_gmom: False
+ weiszfeld_iterations: 10
 
  rb_alpha: 5.0
  kl_target: 0.03

@@ -125,6 +125,7 @@ def main(config=None, args_dict=None, overwrite=False):
             entropy_first=args_dict['entropy_first'],
             clip_importance_ratio=args_dict['clip_importance_ratio'],
             use_gmom=args_dict['use_gmom'],
+            weiszfeld_iterations=args_dict['weiszfeld_iterations'],
             gradient_clipping=args_dict['gradient_clipping'],
             mean_bound=args_dict['mean_bound'],
             cov_bound=args_dict['cov_bound'],
@@ -157,8 +158,10 @@ def main(config=None, args_dict=None, overwrite=False):
         subsample_frequency = None
         if args_dict['env_name'] == "Reacher-v2":
             subsample_frequency = 1
-        elif args_dict['env_name'] == "door-v0" or args_dict['env_name'] == "hammer-v0":
+        elif args_dict['env_name'] == "door-v0" or args_dict['env_name'] == "hammer-v0" or args_dict['env_name'] == "relocate-v0":
             subsample_frequency = 4
+        elif args_dict['env_name'] == "pen-v0":
+            subsample_frequency = 2
         else:
             subsample_frequency = 20
         expert_dataset = gail.ExpertDataset(

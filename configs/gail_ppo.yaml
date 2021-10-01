@@ -28,10 +28,10 @@
  mini_batch_size: 64
  clip_param: 0.2
 
- logging: True
- summary: True
+ logging: False
+ summary: False
  track_vf: False
- track_grad_kurtosis: True
+ track_grad_kurtosis: False
  save_model: False
  log_interval: 2
  eval_interval: 4
@@ -39,7 +39,7 @@
  num_env_steps: 1.0e+6
  env_name: 'HalfCheetah-v2'
  logging_dir: './logs_gail_tr_ppo/'
- log_dir: '/tmp/gym/'
+ log_dir: '/home/kit/anthropomatik/kn6273/gym/'
  no_cuda: True
  use_proper_time_limits: True
 
@@ -59,6 +59,7 @@
  use_tr_ppo: False
  use_truly_ppo: False
  use_gmom: False
+ weiszfeld_iterations: 10
 
  rb_alpha: 0.3
  kl_target: 0.35

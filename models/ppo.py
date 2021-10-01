@@ -38,6 +38,7 @@ class PPO:
                  entropy_first=True,
                  clip_importance_ratio=True,
                  use_gmom=False,
+                 weiszfeld_iterations=10,
                  gradient_clipping=False,
                  mean_bound=0.03,
                  cov_bound=0.001,
@@ -50,7 +51,7 @@ class PPO:
 
         self.use_gmom = use_gmom
         self.num_blocks = 8
-        self.weiszfeld_iterations = 10
+        self.weiszfeld_iterations = weiszfeld_iterations
 
         self.actor_critic = actor_critic
 
