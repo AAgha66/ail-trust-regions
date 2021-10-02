@@ -112,7 +112,7 @@ class PPO:
         off_policy_value_norms = []
         policy_grad_norms = []
         critic_grad_norms = []
-
+        ratios_list = []
         for e in range(self.policy_epoch):
             data_generator = rollouts.feed_forward_generator(
                 advantages, mini_batch_size=self.mini_batch_size)
@@ -195,6 +195,8 @@ class PPO:
                     action_loss = -surr1
 
                 if track_kurtosis_flag:
+                    if e == self.policy_epoch - 1:
+                        ratios_list.extend(ratio.squeeze(-1).tolist())
                     if e == 0 or e == self.policy_epoch - 1:
                         for batch_elt in range(action_loss.shape[0]):
                             total_norm = 0
@@ -321,7 +323,7 @@ class PPO:
 
         return action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, \
                on_policy_kurtosis, off_policy_kurtosis, on_policy_value_kurtosis, \
-               off_policy_value_kurtosis, policy_grad_norms, critic_grad_norms
+               off_policy_value_kurtosis, policy_grad_norms, critic_grad_norms, ratios_list
 
     def update(self, rollouts, iteration):
         self.global_steps += 1
@@ -335,9 +337,9 @@ class PPO:
             track_kurtosis_flag = (iteration % 20 == 0)
         action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, on_policy_kurtosis, \
         off_policy_kurtosis, on_policy_value_kurtosis, off_policy_value_kurtosis, \
-        policy_grad_norms, critic_grad_norms = self.train(advantages=advantages,
-                                                          rollouts=rollouts,
-                                                          track_kurtosis_flag=track_kurtosis_flag)
+        policy_grad_norms, critic_grad_norms, ratios_list = \
+            self.train(advantages=advantages, rollouts=rollouts,
+                       track_kurtosis_flag=track_kurtosis_flag)
 
         # TODO: Find a nicer way to get all obs and old means and stddev
         metrics = None
@@ -372,5 +374,5 @@ class PPO:
         metrics['policy_grad_norms'] = policy_grad_norms
         metrics['critic_grad_norms'] = critic_grad_norms
 
-        metrics['advantages'] = advantages
+        metrics['ratios_list'] = ratios_list
         return metrics

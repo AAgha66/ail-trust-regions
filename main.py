@@ -28,6 +28,7 @@ def main(config=None, args_dict=None, overwrite=False):
     f_grads = None
     f_adv = None
     f_policy_grads = None
+    f_rollout = None
     if args_dict['logging']:
         if os.path.isdir(log_dir_):
             if overwrite:
@@ -45,6 +46,7 @@ def main(config=None, args_dict=None, overwrite=False):
         f_grads = open(log_dir_ + '/logs/log_grads.csv', 'w')
         f_policy_grads = open(log_dir_ + '/logs/log_policy_grads.csv', 'w')
         f_adv = open(log_dir_ + '/logs/log_adv.csv', 'w')
+        f_rollout = open(log_dir_ + '/logs/log_rollout.csv', 'w')
 
     fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards', 'value_loss_epoch',
               'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'vf_diff',
@@ -55,11 +57,14 @@ def main(config=None, args_dict=None, overwrite=False):
     fnames_policy_grads = ['iteration', 'total_num_steps', 'policy_grad_norm', 'critic_grad_norm']
     fnames_grads = ['iteration', 'total_num_steps', 'disc_grad_norm', 'acc_expert', 'acc_policy']
     fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values']
+    fnames_rollout = ['total_num_steps', 'pair_id', 'ratios', 'advantages',
+                      'rewards', 'returns', 'values']
 
     csv_writer = None
     csv_writer_policy_grads = None
     csv_writer_grads = None
     csv_writer_adv = None
+    csv_writer_rollout = None
     if args_dict['logging']:
         csv_writer = csv.DictWriter(f, fieldnames=fnames)
         csv_writer.writeheader()
@@ -67,6 +72,9 @@ def main(config=None, args_dict=None, overwrite=False):
         csv_writer_grads.writeheader()
         csv_writer_adv = csv.DictWriter(f_adv, fieldnames=fnames_adv)
         csv_writer_adv.writeheader()
+        csv_writer_rollout = csv.DictWriter(f_rollout, fieldnames=fnames_rollout)
+        csv_writer_rollout.writeheader()
+
         csv_writer_policy_grads = csv.DictWriter(f_policy_grads, fieldnames=fnames_policy_grads)
         csv_writer_policy_grads.writeheader()
         with open(log_dir_ + '/args.yml', 'w') as outfile:
@@ -391,13 +399,24 @@ def main(config=None, args_dict=None, overwrite=False):
 
         if args_dict['logging']:
             if args_dict['track_vf']:
-                for i in range(tracking_adv.shape[0]):
-                    csv_writer_adv.writerow({'total_num_steps': total_num_steps,
-                                             'pair_id': i,
-                                             'advantages': tracking_adv[i].item(),
-                                             'rewards': tracking_rewards[i].item(),
-                                             'values': tracking_values[i].item()})
-                old_values = tracking_values
+                if (j % 20) == 0:
+                    for i in range(tracking_adv.shape[0]):
+                        csv_writer_adv.writerow({'total_num_steps': total_num_steps,
+                                                 'pair_id': i,
+                                                 'advantages': tracking_adv[i].item(),
+                                                 'rewards': tracking_rewards[i].item(),
+                                                 'values': tracking_values[i].item()})
+                    old_values = tracking_values
+
+                    for i, _ in enumerate(rollouts.rewards):
+                        csv_writer_rollout.writerow({'total_num_steps': total_num_steps,
+                                                 'pair_id': i,
+                                                 'ratios': metrics['ratios_list'][i],
+                                                 'advantages': (rollouts.returns[i] - rollouts.value_preds[i]).item(),
+                                                 'rewards': rollouts.rewards[i].item(),
+                                                 'returns': rollouts.returns[i].item(),
+                                                 'values': rollouts.value_preds[i].item()})
+
             csv_writer.writerow({'total_num_steps': total_num_steps,
                                  'mean_training_episode_reward': np.mean(episode_rewards),
                                  'mean_eval_episode_rewards': mean_eval_episode_rewards,
