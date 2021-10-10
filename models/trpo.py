@@ -133,8 +133,8 @@ class TRPO():
                 break
         return x
 
-    def update(self, rollouts):
-        self.global_steps += 1
+    def update(self, rollouts, j):
+        self.global_steps = j
         # ----------------------------
         # step 1: get returns and GAEs
         advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
@@ -237,4 +237,16 @@ class TRPO():
             metrics['action_loss_epoch'] = new_loss
             metrics['trust_region_loss_epoch'] = 0
             metrics['advantages'] = advantages
+
+            metrics['on_policy_kurtosis'] = None
+            metrics['off_policy_kurtosis'] = None
+
+            metrics['on_policy_value_kurtosis'] = None
+            metrics['off_policy_value_kurtosis'] = None
+
+            metrics['policy_grad_norms'] = None
+            metrics['critic_grad_norms'] = None
+
+            metrics['ratios_list'] = None
+
         return metrics
