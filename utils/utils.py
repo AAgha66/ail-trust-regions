@@ -127,6 +127,7 @@ def get_exp_name(params):
                f"{'n_r' + str(params['norm_reward']) + '-'}" \
                f"c_o{params['clip_obs']:.2E}-" \
                f"c_r{params['clip_reward']:.2E}" \
-               f"cov{params['cov_bound']:.2E}"
+               f"cov{params['cov_bound']:.2E}" \
+               f"mean{params['mean_bound']:.2E}"
 
     return exp_name
