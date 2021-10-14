@@ -62,6 +62,7 @@ class RolloutStorage(object):
     def compute_returns(self,
                         next_value,
                         use_gae,
+                        use_td,
                         gamma,
                         gae_lambda,
                         use_proper_time_limits=True):
@@ -77,6 +78,13 @@ class RolloutStorage(object):
                                                                   1] * gae
                     gae = gae * self.bad_masks[step + 1]
                     self.returns[step] = gae + self.value_preds[step]
+            elif use_td:
+                self.value_preds[-1] = next_value
+                for step in reversed(range(self.rewards.size(0))):
+                    delta = self.rewards[step] + gamma * self.value_preds[
+                        step + 1] * self.masks[step +
+                                               1] - self.value_preds[step]                    
+                    self.returns[step] = delta + self.value_preds[step]
             else:
                 self.returns[-1] = next_value
                 for step in reversed(range(self.rewards.size(0))):
@@ -94,6 +102,13 @@ class RolloutStorage(object):
                     gae = delta + gamma * gae_lambda * self.masks[step +
                                                                   1] * gae
                     self.returns[step] = gae + self.value_preds[step]
+            elif use_td:
+                self.value_preds[-1] = next_value
+                for step in reversed(range(self.rewards.size(0))):
+                    delta = self.rewards[step] + gamma * self.value_preds[
+                        step + 1] * self.masks[step +
+                                               1] - self.value_preds[step]                    
+                    self.returns[step] = delta + self.value_preds[step]
             else:
                 self.returns[-1] = next_value
                 for step in reversed(range(self.rewards.size(0))):

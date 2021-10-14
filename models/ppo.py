@@ -5,7 +5,7 @@ from utils.projection_utils import compute_metrics, gaussian_kl
 from projections.projection_factory import get_projection_layer
 from models.distributions import FixedNormal
 from utils.utils import compute_kurtosis
-
+import numpy as np
 
 class PPO:
     def __init__(self,
@@ -82,6 +82,10 @@ class PPO:
         self.rb_alpha = rb_alpha
         self.proj = None
         self.track_grad_kurtosis = track_grad_kurtosis
+        
+        self.cos = None
+        if self.track_grad_kurtosis:
+            self.cos = nn.CosineSimilarity(dim=0, eps=1e-6)
         if use_projection:
             self.proj = get_projection_layer(proj_type=proj_type, mean_bound=mean_bound,
                                              cov_bound=cov_bound, trust_region_coeff=trust_region_coeff,
@@ -107,6 +111,8 @@ class PPO:
 
         on_policy_norms = []
         off_policy_norms = []
+        on_policy_cos_gradients = []
+        off_policy_cos_gradients = []
 
         on_policy_value_norms = []
         off_policy_value_norms = []
@@ -194,22 +200,27 @@ class PPO:
                 else:
                     action_loss = -surr1
 
+                gradients = []
                 if track_kurtosis_flag:
                     if e == self.policy_epoch - 1:
                         ratios_list.extend(ratio.squeeze(-1).tolist())
                     if e == 0 or e == self.policy_epoch - 1:
                         for batch_elt in range(action_loss.shape[0]):
-                            total_norm = 0
+                            gradient = torch.tensor([])
                             action_loss[batch_elt].backward(retain_graph=True)
                             for p in self.policy_params:
-                                param_norm = p.grad.data.norm(2)
-                                total_norm += param_norm.item() ** 2
+                                gradient = torch.cat([gradient,torch.flatten(p.grad.data)])              
                             if e == 0:
-                                on_policy_norms.append(total_norm ** (1. / 2))
+                                on_policy_norms.append(gradient.norm(2))                                
                             elif e == self.policy_epoch - 1:
-                                off_policy_norms.append(total_norm ** (1. / 2))
-                            self.optimizer_policy.zero_grad()
-
+                                off_policy_norms.append(gradient.norm(2))                                
+                            gradients.append(gradient)
+                            self.optimizer_policy.zero_grad()                                        
+                        if e == 0:
+                            on_policy_cos_gradients = [self.cos(p1, p2).item() for p1 in gradients for p2 in gradients if not torch.equal(p1, p2)]
+                        elif e == self.policy_epoch - 1:
+                            off_policy_cos_gradients = [self.cos(p1, p2).item() for p1 in gradients for p2 in gradients if not torch.equal(p1, p2)]
+                    
                 # Trust region loss
                 trust_region_loss = None
                 if self.proj is not None:
@@ -309,21 +320,32 @@ class PPO:
 
                 if trust_region_loss:
                     trust_region_loss_epoch += trust_region_loss.item()
-
+        
         on_policy_kurtosis = None
         off_policy_kurtosis = None
         on_policy_value_kurtosis = None
         off_policy_value_kurtosis = None
-
+        
+        on_policy_cos_mean = None 
+        off_policy_cos_mean = None 
+        on_policy_cos_median = None 
+        off_policy_cos_median = None
+        
         if track_kurtosis_flag:
             on_policy_kurtosis = compute_kurtosis(on_policy_norms)
             off_policy_kurtosis = compute_kurtosis(off_policy_norms)
             on_policy_value_kurtosis = compute_kurtosis(on_policy_value_norms)
             off_policy_value_kurtosis = compute_kurtosis(off_policy_value_norms)
+            
+            on_policy_cos_mean = np.mean(on_policy_cos_gradients)
+            on_policy_cos_median = np.median(on_policy_cos_gradients)            
+            off_policy_cos_mean = np.mean(off_policy_cos_gradients)
+            off_policy_cos_median = np.median(off_policy_cos_gradients)
 
         return action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, \
                on_policy_kurtosis, off_policy_kurtosis, on_policy_value_kurtosis, \
-               off_policy_value_kurtosis, policy_grad_norms, critic_grad_norms, ratios_list
+               off_policy_value_kurtosis, policy_grad_norms, critic_grad_norms, ratios_list, \
+               on_policy_cos_mean, off_policy_cos_mean, on_policy_cos_median, off_policy_cos_median
 
     def update(self, rollouts, iteration):
         self.global_steps += 1
@@ -334,10 +356,11 @@ class PPO:
 
         track_kurtosis_flag = False
         if self.track_grad_kurtosis:
-            track_kurtosis_flag = (iteration % 20 == 0)
+            track_kurtosis_flag = (iteration % 30 == 0)
         action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, on_policy_kurtosis, \
         off_policy_kurtosis, on_policy_value_kurtosis, off_policy_value_kurtosis, \
-        policy_grad_norms, critic_grad_norms, ratios_list = \
+        policy_grad_norms, critic_grad_norms, ratios_list, \
+        on_policy_cos_mean, off_policy_cos_mean, on_policy_cos_median, off_policy_cos_median = \
             self.train(advantages=advantages, rollouts=rollouts,
                        track_kurtosis_flag=track_kurtosis_flag)
 
@@ -373,6 +396,11 @@ class PPO:
 
         metrics['policy_grad_norms'] = policy_grad_norms
         metrics['critic_grad_norms'] = critic_grad_norms
+
+        metrics['on_policy_cos_mean'] = on_policy_cos_mean
+        metrics['off_policy_cos_mean'] = off_policy_cos_mean
+        metrics['on_policy_cos_median'] = on_policy_cos_median
+        metrics['off_policy_cos_median'] = off_policy_cos_median
 
         metrics['ratios_list'] = ratios_list
         return metrics

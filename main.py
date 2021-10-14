@@ -51,9 +51,12 @@ def main(config=None, args_dict=None, overwrite=False):
     fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards', 'value_loss_epoch',
               'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'vf_diff',
               'tracking_log_probs_mean', 'tracking_log_probs_median',
+              'tracking_diff_actions_norm_mean', 'tracking_diff_actions_norm_median',
               'entropy_mean', 'entropy_diff_mean', 'on_policy_kurtosis',
               'off_policy_kurtosis', 'on_policy_value_kurtosis',
-              'off_policy_value_kurtosis']
+              'off_policy_value_kurtosis', 'on_policy_cos_mean', 
+              'off_policy_cos_mean', 'on_policy_cos_median', 
+              'off_policy_cos_median']
     fnames_policy_grads = ['iteration', 'total_num_steps', 'policy_grad_norm', 'critic_grad_norm']
     fnames_grads = ['iteration', 'total_num_steps', 'disc_grad_norm', 'acc_expert', 'acc_policy']
     fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values']
@@ -262,7 +265,7 @@ def main(config=None, args_dict=None, overwrite=False):
                     rollouts.obs[step], rollouts.actions[step], args_dict['gamma'],
                     rollouts.masks[step])
 
-        rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['gamma'],
+        rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['use_td'], args_dict['gamma'],
                                  args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
 
         metrics = agent.update(rollouts, j)
@@ -309,6 +312,7 @@ def main(config=None, args_dict=None, overwrite=False):
         tracking_rewards = []
         tracking_values = []
         tracking_log_probs = []
+        tracking_diff_actions_norm = []
 
         vf_diff = 0
         tracking_log_probs_mean = 0
@@ -322,7 +326,9 @@ def main(config=None, args_dict=None, overwrite=False):
                     values, tracking_dist = actor_critic.evaluate_actions(normalized_expert_state)
                     tracking_values.append(values)
                     tracking_log_probs.append(tracking_dist.log_probs(tracking_trajs['actions'][traj].type(torch.FloatTensor)))
-
+                    diff_actions = tracking_dist.mode() - tracking_trajs['actions'][traj].type(torch.FloatTensor)
+                    tracking_diff_actions_norm.append(torch.linalg.norm(diff_actions,ord=2,dim=1))
+                    
                     if args_dict['use_gail']:
                         disc_rewards = discr.predict_reward(
                             tracking_trajs['states'][traj].type(torch.FloatTensor),
@@ -353,6 +359,7 @@ def main(config=None, args_dict=None, overwrite=False):
                 tracking_returns = torch.cat(tracking_returns, dim=0)
                 tracking_values = torch.cat(tracking_values, dim=0)
                 tracking_log_probs = torch.cat(tracking_log_probs, dim=0)
+                tracking_diff_actions_norm = torch.cat(tracking_diff_actions_norm, dim=0)
                 tracking_adv = torch.cat(tracking_adv, dim=0)
                 tracking_adv = (tracking_adv - tracking_adv.mean()) / (
                         tracking_adv.std() + 1e-5)
@@ -368,6 +375,9 @@ def main(config=None, args_dict=None, overwrite=False):
                 tracking_values = tracking_values.type(torch.HalfTensor)
                 tracking_log_probs_mean = tracking_log_probs.mean().item()
                 tracking_log_probs_median = tracking_log_probs.median().item()
+
+                tracking_diff_actions_norm_mean = tracking_diff_actions_norm.mean().item()
+                tracking_diff_actions_norm_median = tracking_diff_actions_norm.median().item()
 
         if args_dict['summary']:
             writer.add_scalar('value_loss_epoch',
@@ -387,6 +397,10 @@ def main(config=None, args_dict=None, overwrite=False):
                               tracking_log_probs_mean, total_num_steps)
             writer.add_scalar('tracking_log_probs_median',
                               tracking_log_probs_median, total_num_steps)
+            writer.add_scalar('tracking_diff_actions_norm_mean',
+                              tracking_diff_actions_norm_mean, total_num_steps)
+            writer.add_scalar('tracking_diff_actions_norm_median',
+                              tracking_diff_actions_norm_median, total_num_steps)
             if(metrics['on_policy_kurtosis']):
                 writer.add_scalar('on_policy_kurtosis',
                                   metrics['on_policy_kurtosis'], total_num_steps)
@@ -397,9 +411,18 @@ def main(config=None, args_dict=None, overwrite=False):
                 writer.add_scalar('off_policy_value_kurtosis',
                                   metrics['off_policy_value_kurtosis'], total_num_steps)
 
+                writer.add_scalar('on_policy_cos_mean',
+                                  metrics['on_policy_cos_mean'], total_num_steps)
+                writer.add_scalar('off_policy_cos_mean',
+                                  metrics['off_policy_cos_mean'], total_num_steps)
+                writer.add_scalar('on_policy_cos_median',
+                                  metrics['on_policy_cos_median'], total_num_steps)
+                writer.add_scalar('off_policy_cos_median',
+                                  metrics['off_policy_cos_median'], total_num_steps)
+
         if args_dict['logging']:
             if args_dict['track_vf']:
-                if (j % 20) == 0:
+                if (j % 30) == 0:
                     for i in range(tracking_adv.shape[0]):
                         csv_writer_adv.writerow({'total_num_steps': total_num_steps,
                                                  'pair_id': i,
@@ -427,12 +450,18 @@ def main(config=None, args_dict=None, overwrite=False):
                                  'vf_diff': vf_diff,
                                  'tracking_log_probs_mean': tracking_log_probs_mean,
                                  'tracking_log_probs_median': tracking_log_probs_median,
+                                 'tracking_diff_actions_norm_mean': tracking_diff_actions_norm_mean,
+                                 'tracking_diff_actions_norm_median': tracking_diff_actions_norm_median,
                                  'entropy_mean': metrics['entropy'].item(),
                                  'entropy_diff_mean': metrics['entropy_diff'].item(),
                                  'on_policy_kurtosis': metrics['on_policy_kurtosis'],
                                  'off_policy_kurtosis': metrics['off_policy_kurtosis'],
                                  'on_policy_value_kurtosis': metrics['on_policy_value_kurtosis'],
-                                 'off_policy_value_kurtosis': metrics['off_policy_value_kurtosis']})
+                                 'off_policy_value_kurtosis': metrics['off_policy_value_kurtosis'],
+                                 'on_policy_cos_mean': metrics['on_policy_cos_mean'],
+                                 'off_policy_cos_mean': metrics['off_policy_cos_mean'],
+                                 'on_policy_cos_median': metrics['on_policy_cos_median'],
+                                 'off_policy_cos_median': metrics['off_policy_cos_median']})
 
             for i, _ in enumerate(metrics['policy_grad_norms']):
                 csv_writer_policy_grads.writerow({'iteration': policy_iters,
