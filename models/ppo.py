@@ -124,7 +124,7 @@ class PPO:
                 advantages, mini_batch_size=self.mini_batch_size)
 
             for sample in data_generator:
-                obs_batch, actions_batch, value_preds_batch, return_batch, _, adv_targ, old_means, old_stddevs = sample
+                obs_batch, actions_batch, value_preds_batch, return_batch, _, rewards_batch, adv_targ, old_means, old_stddevs = sample
                 # Reshape to do in a single forward pass for all steps
                 values, dist = self.actor_critic.evaluate_actions(obs_batch)
 
@@ -369,7 +369,7 @@ class PPO:
         data_generator_metric = rollouts.feed_forward_generator(
             advantages, mini_batch_size=self.num_steps)
         for batch in data_generator_metric:
-            obs_batch, _, _, _, _, _, old_means, old_stddevs = batch
+            obs_batch, _, _, _, _, _, _, old_means, old_stddevs = batch
             # Reshape to do in a single forward pass for all steps
             _, dist = self.actor_critic.evaluate_actions(obs_batch)
             old_dist = FixedNormal(old_means, old_stddevs)

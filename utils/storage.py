@@ -146,10 +146,11 @@ class RolloutStorage(object):
             return_batch = self.returns[:-1].view(-1, 1)[indices]
             masks_batch = self.masks[:-1].view(-1, 1)[indices]
 
+            rewards_batch = self.rewards.view(-1, 1)[indices]
             if advantages is None:
                 adv_targ = None
             else:
                 adv_targ = advantages.view(-1, 1)[indices]
 
             yield obs_batch, actions_batch, \
-                  value_preds_batch, return_batch, masks_batch, adv_targ, means_batch, stddevs_batch
+                  value_preds_batch, return_batch, masks_batch, rewards_batch, adv_targ, means_batch, stddevs_batch
