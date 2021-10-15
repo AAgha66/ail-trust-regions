@@ -59,7 +59,7 @@ def main(config=None, args_dict=None, overwrite=False):
               'off_policy_cos_median']
     fnames_policy_grads = ['iteration', 'total_num_steps', 'policy_grad_norm', 'critic_grad_norm']
     fnames_grads = ['iteration', 'total_num_steps', 'disc_grad_norm', 'acc_expert', 'acc_policy']
-    fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values']
+    fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values', 'tracking_diff_actions_norm']
     fnames_rollout = ['total_num_steps', 'pair_id', 'ratios', 'advantages',
                       'rewards', 'returns', 'values']
 
@@ -163,7 +163,14 @@ def main(config=None, args_dict=None, overwrite=False):
     discr = None
     gail_train_loader = None
     expert_dataset = None
-    if args_dict['use_gail'] or args_dict['track_vf']:
+    tracking_expert_dataset = None
+    if args_dict['track_vf']:
+        file_name = args_dict['gail_experts_dir'] + args_dict['env_name'] + \
+                    '_num_traj_' + str(4) + '.pt'
+        tracking_expert_dataset = gail.ExpertDataset(
+            file_name, num_trajectories=4, subsample_frequency=1, tracking=True)
+
+    if args_dict['use_gail']:
         file_name = args_dict['gail_experts_dir'] + args_dict['env_name'] + \
                     '_num_traj_' + str(args_dict['num_trajectories']) + '.pt'
         subsample_frequency = None
@@ -315,10 +322,12 @@ def main(config=None, args_dict=None, overwrite=False):
         tracking_diff_actions_norm = []
 
         vf_diff = 0
-        tracking_log_probs_mean = 0
-        tracking_log_probs_median = 0
-        if args_dict['track_vf']:
-            tracking_trajs = expert_dataset.get_traj()
+        tracking_log_probs_mean = None
+        tracking_log_probs_median = None
+        tracking_diff_actions_norm_mean = None
+        tracking_diff_actions_norm_median = None
+        if args_dict['track_vf'] and j % 30 == 0:
+            tracking_trajs = tracking_expert_dataset.get_traj()
             with torch.no_grad():
                 for traj in range(args_dict['num_trajectories']):
                     normalized_expert_state = utils.utils.get_vec_normalize(envs)._obfilt(tracking_trajs['states'][traj].type(torch.FloatTensor).numpy(), update=False)
@@ -334,7 +343,7 @@ def main(config=None, args_dict=None, overwrite=False):
                             tracking_trajs['states'][traj].type(torch.FloatTensor),
                             tracking_trajs['actions'][traj].type(torch.FloatTensor),
                             args_dict['gamma'],
-                            torch.ones(50, 1))
+                            torch.ones(1000, 1))
                         tracking_rewards.append(disc_rewards)
                     else:
                         tracking_rewards.append(tracking_trajs['rewards'][traj])
@@ -393,14 +402,15 @@ def main(config=None, args_dict=None, overwrite=False):
                               metrics['entropy'], total_num_steps)
             writer.add_scalar('vf_diff',
                               vf_diff, total_num_steps)
-            writer.add_scalar('tracking_log_probs_mean',
-                              tracking_log_probs_mean, total_num_steps)
-            writer.add_scalar('tracking_log_probs_median',
-                              tracking_log_probs_median, total_num_steps)
-            writer.add_scalar('tracking_diff_actions_norm_mean',
-                              tracking_diff_actions_norm_mean, total_num_steps)
-            writer.add_scalar('tracking_diff_actions_norm_median',
-                              tracking_diff_actions_norm_median, total_num_steps)
+            if args_dict['track_vf'] and j % 30 == 0:
+                writer.add_scalar('tracking_log_probs_mean',
+                                tracking_log_probs_mean, total_num_steps)
+                writer.add_scalar('tracking_log_probs_median',
+                                tracking_log_probs_median, total_num_steps)
+                writer.add_scalar('tracking_diff_actions_norm_mean',
+                                tracking_diff_actions_norm_mean, total_num_steps)
+                writer.add_scalar('tracking_diff_actions_norm_median',
+                                tracking_diff_actions_norm_median, total_num_steps)
             if(metrics['on_policy_kurtosis']):
                 writer.add_scalar('on_policy_kurtosis',
                                   metrics['on_policy_kurtosis'], total_num_steps)
@@ -421,24 +431,24 @@ def main(config=None, args_dict=None, overwrite=False):
                                   metrics['off_policy_cos_median'], total_num_steps)
 
         if args_dict['logging']:
-            if args_dict['track_vf']:
-                if (j % 30) == 0:
-                    for i in range(tracking_adv.shape[0]):
-                        csv_writer_adv.writerow({'total_num_steps': total_num_steps,
-                                                 'pair_id': i,
-                                                 'advantages': tracking_adv[i].item(),
-                                                 'rewards': tracking_rewards[i].item(),
-                                                 'values': tracking_values[i].item()})
-                    old_values = tracking_values
+            if args_dict['track_vf'] and j % 30 == 0:
+                for i in range(tracking_adv.shape[0]):
+                    csv_writer_adv.writerow({'total_num_steps': total_num_steps,
+                                                'pair_id': i,
+                                                'advantages': tracking_adv[i].item(),
+                                                'rewards': tracking_rewards[i].item(),
+                                                'values': tracking_values[i].item(),
+                                                'tracking_diff_actions_norm': tracking_diff_actions_norm[i].item()})
+                old_values = tracking_values
 
-                    for i, _ in enumerate(rollouts.rewards):
-                        csv_writer_rollout.writerow({'total_num_steps': total_num_steps,
-                                                 'pair_id': i,
-                                                 'ratios': metrics['ratios_list'][i],
-                                                 'advantages': (rollouts.returns[i] - rollouts.value_preds[i]).item(),
-                                                 'rewards': rollouts.rewards[i].item(),
-                                                 'returns': rollouts.returns[i].item(),
-                                                 'values': rollouts.value_preds[i].item()})
+                for i, _ in enumerate(rollouts.rewards):
+                    csv_writer_rollout.writerow({'total_num_steps': total_num_steps,
+                                                'pair_id': i,
+                                                'ratios': metrics['ratios_list'][i],
+                                                'advantages': (rollouts.returns[i] - rollouts.value_preds[i]).item(),
+                                                'rewards': rollouts.rewards[i].item(),
+                                                'returns': rollouts.returns[i].item(),
+                                                'values': rollouts.value_preds[i].item()})
 
             csv_writer.writerow({'total_num_steps': total_num_steps,
                                  'mean_training_episode_reward': np.mean(episode_rewards),
