@@ -144,19 +144,27 @@ class Discriminator(nn.Module):
 
 
 class ExpertDataset(torch.utils.data.Dataset):
-    def __init__(self, file_name, num_trajectories=4, subsample_frequency=20):
+    def __init__(self, file_name, num_trajectories=4, subsample_frequency=20, tracking=False):
         all_trajectories = torch.load(file_name)
 
-        perm = torch.randperm(all_trajectories['states'].size(0))
-        idx = perm[:num_trajectories]
+        idx = None
+        if tracking:
+            idx = list(range(0, num_trajectories))            
+        else:
+            perm = torch.randperm(all_trajectories['states'].size(0))
+            idx = perm[:num_trajectories]
 
         self.trajectories = {}
 
         # See https://github.com/pytorch/pytorch/issues/14886
         # .long() for fixing bug in torch v0.4.1
-        start_idx = torch.randint(
-            0, subsample_frequency, size=(num_trajectories,)).long()
-
+        start_idx = None
+        if tracking:
+            start_idx = torch.tensor([0] * num_trajectories)
+        else:
+            start_idx = torch.randint(
+                0, subsample_frequency, size=(num_trajectories,)).long()
+        
         for k, v in all_trajectories.items():
             data = v[idx]
 
