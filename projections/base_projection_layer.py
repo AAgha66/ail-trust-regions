@@ -72,7 +72,7 @@ def entropy_equality_projection(p_dist: FixedNormal,
     ent = p_dist.entropy()
     alpha = ch.exp((beta - ent) / k)
     proj_std = ch.einsum('ijk,i->ijk', std, alpha)
-    return FixedNormal(mean, proj_std.diagonal())
+    return FixedNormal(mean, proj_std.diagonal(dim1=-2, dim2=-1))
 
 
 def mean_projection(mean: ch.Tensor, old_mean: ch.Tensor, maha: ch.Tensor, eps: ch.Tensor):
