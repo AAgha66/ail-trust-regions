@@ -270,12 +270,14 @@ def main(config=None, args_dict=None, overwrite=False):
             for step in range(args_dict['num_steps']):
                 rollouts.rewards[step] = discr.predict_reward(
                     rollouts.obs[step], rollouts.actions[step], args_dict['gamma'],
-                    rollouts.masks[step])
+                    rollouts.masks[step], update_rms=False, 
+                    use_disc_as_adv=args_dict['use_disc_as_adv'])
 
-        rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['use_td'], args_dict['gamma'],
-                                 args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
+        if not args_dict['use_disc_as_adv']:
+            rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['use_td'], args_dict['gamma'],
+                                    args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
 
-        metrics = agent.update(rollouts, j)
+        metrics = agent.update(rollouts, j, args_dict['use_disc_as_adv'])
 
         rollouts.after_update()
         total_num_steps = (j + 1) * args_dict['num_processes'] * args_dict['num_steps']
@@ -329,7 +331,7 @@ def main(config=None, args_dict=None, overwrite=False):
         if args_dict['track_vf'] and j % 30 == 0:
             tracking_trajs = tracking_expert_dataset.get_traj()
             with torch.no_grad():
-                for traj in range(args_dict['num_trajectories']):
+                for traj in range(4):
                     normalized_expert_state = utils.utils.get_vec_normalize(envs)._obfilt(tracking_trajs['states'][traj].type(torch.FloatTensor).numpy(), update=False)
                     normalized_expert_state = torch.FloatTensor(normalized_expert_state).to(device)
                     values, tracking_dist = actor_critic.evaluate_actions(normalized_expert_state)
@@ -343,7 +345,7 @@ def main(config=None, args_dict=None, overwrite=False):
                             tracking_trajs['states'][traj].type(torch.FloatTensor),
                             tracking_trajs['actions'][traj].type(torch.FloatTensor),
                             args_dict['gamma'],
-                            torch.ones(1000, 1))
+                            torch.ones(tracking_trajs['actions'][traj].shape[0], 1))
                         tracking_rewards.append(disc_rewards)
                     else:
                         tracking_rewards.append(tracking_trajs['rewards'][traj])

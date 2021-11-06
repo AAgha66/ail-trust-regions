@@ -122,15 +122,19 @@ class Discriminator(nn.Module):
             grad_norms.append(total_norm ** (1. / 2))
         return loss / n, grad_norms, acc_policy, acc_expert
 
-    def predict_reward(self, state, action, gamma, masks, update_rms=True):
+    def predict_reward(self, state, action, gamma, masks, update_rms=True, use_disc_as_adv=False):
         with torch.no_grad():
             self.eval()
             d = self.trunk(torch.cat([state, action], dim=1))
-            s = torch.sigmoid(d)
-
+            
             if self.airl_reward:
+                s = torch.sigmoid(d)
                 reward = torch.log(s + 1e-8) - torch.log(1 - s + 1e-8)
+            elif use_disc_as_adv:
+                s = torch.sigmoid(d)
+                reward = -torch.log(1 - s + 1e-8)
             else:
+                s = torch.sigmoid(d)
                 reward = -torch.log(1 - s + 1e-8)
 
             if self.returns is None:
