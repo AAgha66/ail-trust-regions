@@ -4,7 +4,7 @@
  gail_experts_dir: './gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
- lr_disc: 1.0e-5
+ lr_disc: 0.0003
  num_trajectories: 4
  gradient_penalty: False
  spectral_norm: False
@@ -12,7 +12,6 @@
 
  eps: 1.0e-5
  gamma: 0.995
- use_gae: True
  gae_lambda: 0.97
  entropy_coef: 0
  value_loss_coef: 0.5
@@ -23,8 +22,8 @@
  num_processes: 1
  num_steps: 50000
 
- policy_epoch: 5
- vf_epoch: 5
+ policy_epoch: 10
+ vf_epoch: 10
 
  mini_batch_size: 64
  clip_param: 0.2
@@ -77,10 +76,15 @@
  entropy_first: True
  target_entropy: 0
 
+ use_gae: True
+ use_td: False
+ use_disc_as_adv: False
+ 
  #https://github.com/openai/baselines/blob/master/baselines/gail/run_mujoco.py
- max_kl: 0.01 
+ max_kl: 0.01
  cg_damping: 0.1
  cg_max_iters: 10
- line_search_coef: 0.9
+
+ line_search_coef: 0.5 #0.9
  line_search_max_iter: 10
  line_search_accept_ratio: 0.1

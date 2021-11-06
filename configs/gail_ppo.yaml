@@ -1,7 +1,7 @@
  algo: 'ppo'
 
  use_gail: True
- gail_experts_dir: './gail_experts/'
+ gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
  lr_disc: 1.0e-5
@@ -12,7 +12,6 @@
  
  eps: 1.0e-5
  gamma: 0.99
- use_gae: True
  gae_lambda: 0.95
  entropy_coef: 0
  value_loss_coef: 1.0
@@ -30,7 +29,7 @@
 
  logging: False
  summary: False
- track_vf: False
+ track_vf: True
  track_grad_kurtosis: False
  save_model: False
  log_interval: 2
@@ -75,3 +74,7 @@
  entropy_eq: False
  entropy_first: True
  target_entropy: 0
+
+ use_gae: True
+ use_td: False
+ use_disc_as_adv: False

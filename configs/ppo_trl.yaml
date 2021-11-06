@@ -12,7 +12,6 @@
 
  eps: 1.0e-5
  gamma: 0.99
- use_gae: True
  gae_lambda: 0.95
  entropy_coef: 0
  value_loss_coef: 1.0

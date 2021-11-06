@@ -12,7 +12,6 @@
 
  eps: 1.0e-5
  gamma: 0.99
- use_gae: True
  gae_lambda: 0.95
  entropy_coef: 0
  value_loss_coef: 1.0
@@ -31,8 +30,8 @@
  logging: True
  summary: True
  track_vf: False
- track_grad_kurtosis: True
- save_model: False
+ track_grad_kurtosis: False
+ save_model: True
  log_interval: 2
  eval_interval: 4
  
@@ -51,7 +50,7 @@
  clip_obs: 10.0
  clip_reward: 10.0
  lr_policy: 3.0e-4
- lr_value: 3.0e-4
+ lr_value: 2.5e-4
 
  clip_importance_ratio: True
  use_kl_penalty: False
@@ -75,3 +74,7 @@
  entropy_eq: False
  entropy_first: True
  target_entropy: 0
+
+ use_gae: True
+ use_td: False
+ use_disc_as_adv: False

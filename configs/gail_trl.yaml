@@ -1,7 +1,7 @@
  algo: 'ppo'
 
  use_gail: True
- gail_experts_dir: './gail_experts/'
+ gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
  lr_disc: 3.0e-5
@@ -12,7 +12,6 @@
  
  eps: 1.0e-5
  gamma: 0.99
- use_gae: True
  gae_lambda: 0.95
  entropy_coef: 0
  value_loss_coef: 1.0
@@ -24,6 +23,7 @@
  num_steps: 2048
 
  policy_epoch: 20
+ vf_epoch: 10
 
  mini_batch_size: 32
  clip_param: 0.2
@@ -38,8 +38,8 @@
  
  num_env_steps: 1.5e+6
  env_name: 'HalfCheetah-v2'
- logging_dir: './logs_gail_trl_ent/'
- log_dir: '/tmp/gym'
+ logging_dir: './logs_gail_reward/'
+ log_dir: '/home/kit/anthropomatik/kn6273/gym'
  no_cuda: True
  use_proper_time_limits: True
 
@@ -66,12 +66,16 @@
  start_beta: 1.0
 
  use_projection: True
- proj_type: 'w2'
+ proj_type: 'kl'
  mean_bound: 0.03
- cov_bound: 0.005
+ cov_bound: 0.0005
  trust_region_coeff: 8.0
  entropy_schedule: 'None'
  scale_prec: True
  entropy_eq: False
  entropy_first: True
  target_entropy: 0
+
+ use_gae: True
+ use_td: False
+ use_disc_as_adv: False
