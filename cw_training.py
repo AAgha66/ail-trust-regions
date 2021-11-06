@@ -45,9 +45,16 @@ class MyExperiment(experiment.AbstractExperiment):
         args_dict['gamma'] = config.params['gamma']
         args_dict['entropy_coef'] = config.params['entropy_coef']
 
+        args_dict['use_gae'] = config.params['use_gae']
+        args_dict['use_td'] = config.params['use_td']
+        args_dict['use_disc_as_adv'] = config.params['use_disc_as_adv']
+
         if config.params['use_proj']:
             args_dict['proj_type'] = config.params['proj_type']
             args_dict['entropy_schedule'] = config.params['entropy_schedule']
+            args_dict['target_entropy'] = config.params['target_entropy']
+            args_dict['entropy_first'] = config.params['entropy_first']
+            args_dict['entropy_eq'] = config.params['entropy_eq']
 
             args_dict['cov_bound'] = config.params['cov_bound']
             args_dict['mean_bound'] = config.params['mean_bound']
