@@ -278,7 +278,6 @@ def main(config=None, args_dict=None, overwrite=False):
                                     args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
 
         metrics = agent.update(rollouts, j, args_dict['use_disc_as_adv'])
-
         rollouts.after_update()
         total_num_steps = (j + 1) * args_dict['num_processes'] * args_dict['num_steps']
         if j % args_dict['log_interval'] == 0 and len(episode_rewards) > 1:
@@ -446,7 +445,7 @@ def main(config=None, args_dict=None, overwrite=False):
                 for i, _ in enumerate(rollouts.rewards):
                     csv_writer_rollout.writerow({'total_num_steps': total_num_steps,
                                                 'pair_id': i,
-                                                'ratios': metrics['ratios_list'][i],
+                                                'ratios': metrics['ratios_list'][i] if metrics['ratios_list'] is not None else None,
                                                 'advantages': (rollouts.returns[i] - rollouts.value_preds[i]).item(),
                                                 'rewards': rollouts.rewards[i].item(),
                                                 'returns': rollouts.returns[i].item(),
@@ -475,17 +474,18 @@ def main(config=None, args_dict=None, overwrite=False):
                                  'on_policy_cos_median': metrics['on_policy_cos_median'],
                                  'off_policy_cos_median': metrics['off_policy_cos_median']})
 
-            for i, _ in enumerate(metrics['policy_grad_norms']):
-                csv_writer_policy_grads.writerow({'iteration': policy_iters,
-                                                  'total_num_steps': total_num_steps,
-                                                  'policy_grad_norm': metrics['policy_grad_norms'][i],
-                                                  'critic_grad_norm': metrics['critic_grad_norms'][i]})
-                if args_dict['summary']:
-                    writer.add_scalar('policy_grad_norm',
-                                      metrics['policy_grad_norms'][i], policy_iters)
-                    writer.add_scalar('critic_grad_norm',
-                                      metrics['critic_grad_norms'][i], policy_iters)
-                policy_iters += 1
+            if metrics['policy_grad_norms'] is not None: 
+                for i, _ in enumerate(metrics['policy_grad_norms']):
+                    csv_writer_policy_grads.writerow({'iteration': policy_iters,
+                                                    'total_num_steps': total_num_steps,
+                                                    'policy_grad_norm': metrics['policy_grad_norms'][i],
+                                                    'critic_grad_norm': metrics['critic_grad_norms'][i]})
+                    if args_dict['summary']:
+                        writer.add_scalar('policy_grad_norm',
+                                        metrics['policy_grad_norms'][i], policy_iters)
+                        writer.add_scalar('critic_grad_norm',
+                                        metrics['critic_grad_norms'][i], policy_iters)
+                    policy_iters += 1
 
             for i, _ in enumerate(acc_expert):
                 csv_writer_grads.writerow({'iteration': gail_iters,
