@@ -81,7 +81,7 @@ class TRPO():
                 advantages, mini_batch_size=self.mini_batch_size)
 
             for sample in data_generator:
-                obs_batch, _, value_preds_batch, return_batch, _, _, _, _ = sample
+                obs_batch, _, value_preds_batch, return_batch, _, _, _, _, _ = sample
                 # Reshape to do in a single forward pass for all steps
                 values, _ = self.actor_critic.evaluate_actions(obs_batch)
                 value_loss = 0.5 * (return_batch - values).pow(2).mean()
@@ -133,7 +133,7 @@ class TRPO():
                 break
         return x
 
-    def update(self, rollouts, j):
+    def update(self, rollouts, j, use_disc_as_adv):
         self.global_steps = j
         # ----------------------------
         # step 1: get returns and GAEs
@@ -152,13 +152,11 @@ class TRPO():
             advantages, mini_batch_size=self.num_steps)
         metrics = None
         for batch in data_generator_policy:
-            obs_batch, actions_batch, \
-            value_preds_batch, return_batch, _, adv_targ, _, _ = batch
-
+            obs_batch, actions_batch, value_preds_batch, return_batch, _, _, adv_targ, _, _ = batch
             _, dist = self.actor_critic.evaluate_actions(obs_batch)
             action_log_probs = dist.log_probs(actions_batch)
             ratio = torch.exp(action_log_probs -
-                              action_log_probs.detach())
+                              action_log_probs.detach())            
             loss = (ratio * adv_targ).mean()
 
             loss_grad = torch.autograd.grad(loss, self.policy_params)
@@ -219,9 +217,10 @@ class TRPO():
                       .format(kl.data.numpy(), loss_improve, expected_improve[0], i))"""
 
                 # see https: // en.wikipedia.org / wiki / Backtracking_line_search
-                if kl < self.max_kl and (loss_improve / expected_improve) > self.line_search_accept_ratio:
+                #if kl < self.max_kl and (loss_improve / expected_improve) > self.line_search_accept_ratio:
+                if kl < self.max_kl:
                     flag = True
-                    break
+                    break                
 
                 fraction *= self.line_search_coef
 
@@ -232,7 +231,6 @@ class TRPO():
 
             detached_new_dist = FixedNormal(new_dist.mean.detach(), new_dist.stddev.detach())
             metrics = compute_metrics(detached_old_dist, detached_new_dist)
-
             metrics['value_loss_epoch'] = value_loss_epoch / num_updates_value
             metrics['action_loss_epoch'] = new_loss
             metrics['trust_region_loss_epoch'] = 0
@@ -248,5 +246,10 @@ class TRPO():
             metrics['critic_grad_norms'] = None
 
             metrics['ratios_list'] = None
+
+            metrics['on_policy_cos_mean'] = None
+            metrics['off_policy_cos_mean'] = None
+            metrics['on_policy_cos_median'] = None
+            metrics['off_policy_cos_median'] = None
 
         return metrics
