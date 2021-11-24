@@ -16,9 +16,15 @@ def get_samples(path):
     scores = []
     for sample in samples:
         log = sample + '/logs/log.csv'
-        dfs.append(pd.read_csv(log))
-        df_means = dfs[-1].mean()
-        scores.append(df_means['mean_eval_episode_rewards'])
+        df = pd.read_csv(log)
+        filtered_df = df[df['mean_eval_episode_rewards'].notnull()]
+        filtered_df['Rolling rewards average'] = filtered_df['mean_eval_episode_rewards'].rolling(10).mean()
+        filtered_df['Rolling rewards standard deviation'] = filtered_df['mean_eval_episode_rewards'].rolling(10).std()
+        max_score = filtered_df['Rolling rewards average'].max()
+        scores.append(max_score)
+        
+        """df_means = df.mean()
+        scores.append(df_means['mean_eval_episode_rewards'])"""
     means = []
     for i in range(500):
         means.append(np.mean(random.sample(scores, 3)))
@@ -48,9 +54,6 @@ if __name__ == "__main__":
         '--path', default='/home/aagha/training_27.08/kl_3e+6/HalfCheetah-v2', help='directory containing logs')
     args = parser.parse_args()
 
-    paths = ['/home/kit/anthropomatik/kn6273/Repos/logs/training_06.10/training_van_normalized/HalfCheetah-v2',
-'/home/kit/anthropomatik/kn6273/Repos/logs/training_06.10/training_van_normalized/Walker2d-v2',
-'/home/kit/anthropomatik/kn6273/Repos/logs/training_06.10/training_van_unnormalized/HalfCheetah-v2',
-'/home/kit/anthropomatik/kn6273/Repos/logs/training_06.10/training_van_unnormalized/Walker2d-v2']
+    paths = ['/home/kit/anthropomatik/kn6273/Repos/logs/training_22.11/door_4/door-v0']
     for path in paths:
         get_samples(path=path)
