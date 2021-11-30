@@ -17,6 +17,7 @@ from evaluation import evaluate
 from torch.utils.tensorboard import SummaryWriter
 import mj_envs
 
+
 def main(config=None, args_dict=None, overwrite=False):
     if args_dict is None:
         args_dict = get_args_dict(config=config)
@@ -54,8 +55,8 @@ def main(config=None, args_dict=None, overwrite=False):
               'tracking_diff_actions_norm_mean', 'tracking_diff_actions_norm_median',
               'entropy_mean', 'entropy_diff_mean', 'on_policy_kurtosis',
               'off_policy_kurtosis', 'on_policy_value_kurtosis',
-              'off_policy_value_kurtosis', 'on_policy_cos_mean', 
-              'off_policy_cos_mean', 'on_policy_cos_median', 
+              'off_policy_value_kurtosis', 'on_policy_cos_mean',
+              'off_policy_cos_mean', 'on_policy_cos_median',
               'off_policy_cos_median']
     fnames_policy_grads = ['iteration', 'total_num_steps', 'policy_grad_norm', 'critic_grad_norm']
     fnames_grads = ['iteration', 'total_num_steps', 'disc_grad_norm', 'acc_expert', 'acc_policy']
@@ -103,6 +104,20 @@ def main(config=None, args_dict=None, overwrite=False):
         envs.observation_space.shape,
         envs.action_space)
     actor_critic.to(device)
+    args_dict['decay'] = 10.0
+    args_dict['gailgamma'] = 0.5
+    args_dict['bcgail'] = True
+    # If BCGAIL, then decay factor and gamma should be float
+    if args_dict['bcgail']:
+        assert type(args_dict['decay']) == float
+        assert type(args_dict['gailgamma']) == float
+        if args_dict['decay'] < 0:
+            args_dict['decay'] = 1
+        elif args_dict['decay'] > 1:
+            args_dict['decay'] = 0.5 ** (1. / args_dict['decay'])
+
+        print('Gamma: {}, decay: {}'.format(args_dict['gailgamma'], args_dict['decay']))
+        print('BCGAIL used')
 
     if args_dict['algo'] == 'ppo':
         agent = ppo.PPO(
@@ -141,7 +156,9 @@ def main(config=None, args_dict=None, overwrite=False):
             mean_bound=args_dict['mean_bound'],
             cov_bound=args_dict['cov_bound'],
             trust_region_coeff=args_dict['trust_region_coeff'],
-            target_entropy=args_dict['target_entropy'])
+            target_entropy=args_dict['target_entropy'],
+            decay=args_dict['decay'],
+            gailgamma=args_dict['gailgamma'])
     elif args_dict['algo'] == 'trpo':
         agent = trpo.TRPO(actor_critic=actor_critic,
                           vf_epoch=args_dict['vf_epoch'],
@@ -176,7 +193,8 @@ def main(config=None, args_dict=None, overwrite=False):
         subsample_frequency = None
         if args_dict['env_name'] == "Reacher-v2":
             subsample_frequency = 1
-        elif args_dict['env_name'] == "door-v0" or args_dict['env_name'] == "hammer-v0" or args_dict['env_name'] == "relocate-v0":
+        elif args_dict['env_name'] == "door-v0" or args_dict['env_name'] == "hammer-v0" or args_dict[
+            'env_name'] == "relocate-v0":
             subsample_frequency = 4
         elif args_dict['env_name'] == "pen-v0":
             subsample_frequency = 2
@@ -189,7 +207,8 @@ def main(config=None, args_dict=None, overwrite=False):
         assert len(envs.observation_space.shape) == 1
         discr = gail.Discriminator(
             input_dim=(envs.observation_space.shape[0] + envs.action_space.shape[0]),
-            hidden_dim=100, device=device, gradient_penalty=args_dict['gradient_penalty'], lr_disc=args_dict['lr_disc'], spectral_norm=args_dict['spectral_norm'],
+            hidden_dim=100, device=device, gradient_penalty=args_dict['gradient_penalty'], lr_disc=args_dict['lr_disc'],
+            spectral_norm=args_dict['spectral_norm'],
             airl_reward=args_dict['airl_reward'])
         drop_last = len(expert_dataset) > args_dict['gail_batch_size']
         gail_train_loader = torch.utils.data.DataLoader(
@@ -270,14 +289,17 @@ def main(config=None, args_dict=None, overwrite=False):
             for step in range(args_dict['num_steps']):
                 rollouts.rewards[step] = discr.predict_reward(
                     rollouts.obs[step], rollouts.actions[step], args_dict['gamma'],
-                    rollouts.masks[step], update_rms=False, 
+                    rollouts.masks[step], update_rms=False,
                     use_disc_as_adv=args_dict['use_disc_as_adv'])
 
         if not args_dict['use_disc_as_adv']:
             rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['use_td'], args_dict['gamma'],
-                                    args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
+                                     args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
 
-        metrics = agent.update(rollouts, j, args_dict['use_disc_as_adv'])
+        metrics = agent.update(rollouts, j, args_dict['use_disc_as_adv'], expert_dataset=gail_train_loader,
+                               obfilt=utils.utils.get_vec_normalize(envs)._obfilt,
+                               num_trajs=args_dict['num_trajectories'])
+
         rollouts.after_update()
         total_num_steps = (j + 1) * args_dict['num_processes'] * args_dict['num_steps']
         if j % args_dict['log_interval'] == 0 and len(episode_rewards) > 1:
@@ -331,14 +353,16 @@ def main(config=None, args_dict=None, overwrite=False):
             tracking_trajs = tracking_expert_dataset.get_traj()
             with torch.no_grad():
                 for traj in range(4):
-                    normalized_expert_state = utils.utils.get_vec_normalize(envs)._obfilt(tracking_trajs['states'][traj].type(torch.FloatTensor).numpy(), update=False)
+                    normalized_expert_state = utils.utils.get_vec_normalize(envs)._obfilt(
+                        tracking_trajs['states'][traj].type(torch.FloatTensor).numpy(), update=False)
                     normalized_expert_state = torch.FloatTensor(normalized_expert_state).to(device)
                     values, tracking_dist = actor_critic.evaluate_actions(normalized_expert_state)
                     tracking_values.append(values)
-                    tracking_log_probs.append(tracking_dist.log_probs(tracking_trajs['actions'][traj].type(torch.FloatTensor)))
+                    tracking_log_probs.append(
+                        tracking_dist.log_probs(tracking_trajs['actions'][traj].type(torch.FloatTensor)))
                     diff_actions = tracking_dist.mode() - tracking_trajs['actions'][traj].type(torch.FloatTensor)
-                    tracking_diff_actions_norm.append(torch.linalg.norm(diff_actions,ord=2,dim=1))
-                    
+                    tracking_diff_actions_norm.append(torch.linalg.norm(diff_actions, ord=2, dim=1))
+
                     if args_dict['use_gail']:
                         disc_rewards = discr.predict_reward(
                             tracking_trajs['states'][traj].type(torch.FloatTensor),
@@ -405,14 +429,14 @@ def main(config=None, args_dict=None, overwrite=False):
                               vf_diff, total_num_steps)
             if args_dict['track_vf'] and j % 30 == 0:
                 writer.add_scalar('tracking_log_probs_mean',
-                                tracking_log_probs_mean, total_num_steps)
+                                  tracking_log_probs_mean, total_num_steps)
                 writer.add_scalar('tracking_log_probs_median',
-                                tracking_log_probs_median, total_num_steps)
+                                  tracking_log_probs_median, total_num_steps)
                 writer.add_scalar('tracking_diff_actions_norm_mean',
-                                tracking_diff_actions_norm_mean, total_num_steps)
+                                  tracking_diff_actions_norm_mean, total_num_steps)
                 writer.add_scalar('tracking_diff_actions_norm_median',
-                                tracking_diff_actions_norm_median, total_num_steps)
-            if(metrics['on_policy_kurtosis']):
+                                  tracking_diff_actions_norm_median, total_num_steps)
+            if (metrics['on_policy_kurtosis']):
                 writer.add_scalar('on_policy_kurtosis',
                                   metrics['on_policy_kurtosis'], total_num_steps)
                 writer.add_scalar('off_policy_kurtosis',
@@ -435,21 +459,22 @@ def main(config=None, args_dict=None, overwrite=False):
             if args_dict['track_vf'] and j % 30 == 0:
                 for i in range(tracking_adv.shape[0]):
                     csv_writer_adv.writerow({'total_num_steps': total_num_steps,
-                                                'pair_id': i,
-                                                'advantages': tracking_adv[i].item(),
-                                                'rewards': tracking_rewards[i].item(),
-                                                'values': tracking_values[i].item(),
-                                                'tracking_diff_actions_norm': tracking_diff_actions_norm[i].item()})
+                                             'pair_id': i,
+                                             'advantages': tracking_adv[i].item(),
+                                             'rewards': tracking_rewards[i].item(),
+                                             'values': tracking_values[i].item(),
+                                             'tracking_diff_actions_norm': tracking_diff_actions_norm[i].item()})
                 old_values = tracking_values
 
                 for i, _ in enumerate(rollouts.rewards):
                     csv_writer_rollout.writerow({'total_num_steps': total_num_steps,
-                                                'pair_id': i,
-                                                'ratios': metrics['ratios_list'][i] if metrics['ratios_list'] is not None else None,
-                                                'advantages': (rollouts.returns[i] - rollouts.value_preds[i]).item(),
-                                                'rewards': rollouts.rewards[i].item(),
-                                                'returns': rollouts.returns[i].item(),
-                                                'values': rollouts.value_preds[i].item()})
+                                                 'pair_id': i,
+                                                 'ratios': metrics['ratios_list'][i] if metrics[
+                                                                                            'ratios_list'] is not None else None,
+                                                 'advantages': (rollouts.returns[i] - rollouts.value_preds[i]).item(),
+                                                 'rewards': rollouts.rewards[i].item(),
+                                                 'returns': rollouts.returns[i].item(),
+                                                 'values': rollouts.value_preds[i].item()})
 
             csv_writer.writerow({'total_num_steps': total_num_steps,
                                  'mean_training_episode_reward': np.mean(episode_rewards),
@@ -474,17 +499,17 @@ def main(config=None, args_dict=None, overwrite=False):
                                  'on_policy_cos_median': metrics['on_policy_cos_median'],
                                  'off_policy_cos_median': metrics['off_policy_cos_median']})
 
-            if metrics['policy_grad_norms'] is not None: 
+            if metrics['policy_grad_norms'] is not None:
                 for i, _ in enumerate(metrics['policy_grad_norms']):
                     csv_writer_policy_grads.writerow({'iteration': policy_iters,
-                                                    'total_num_steps': total_num_steps,
-                                                    'policy_grad_norm': metrics['policy_grad_norms'][i],
-                                                    'critic_grad_norm': metrics['critic_grad_norms'][i]})
+                                                      'total_num_steps': total_num_steps,
+                                                      'policy_grad_norm': metrics['policy_grad_norms'][i],
+                                                      'critic_grad_norm': metrics['critic_grad_norms'][i]})
                     if args_dict['summary']:
                         writer.add_scalar('policy_grad_norm',
-                                        metrics['policy_grad_norms'][i], policy_iters)
+                                          metrics['policy_grad_norms'][i], policy_iters)
                         writer.add_scalar('critic_grad_norm',
-                                        metrics['critic_grad_norms'][i], policy_iters)
+                                          metrics['critic_grad_norms'][i], policy_iters)
                     policy_iters += 1
 
             for i, _ in enumerate(acc_expert):

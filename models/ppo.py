@@ -6,6 +6,8 @@ from projections.projection_factory import get_projection_layer
 from models.distributions import FixedNormal
 from utils.utils import compute_kurtosis
 import numpy as np
+from torch.autograd import Variable
+
 
 class PPO:
     def __init__(self,
@@ -44,7 +46,9 @@ class PPO:
                  cov_bound=0.001,
                  rb_alpha=0.3,
                  trust_region_coeff=8.0,
-                 target_entropy=0):
+                 target_entropy=0,
+                 decay=10,
+                 gailgamma=1):
 
         assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
                     use_rollback, use_tr_ppo, use_truly_ppo]) == 1
@@ -82,7 +86,7 @@ class PPO:
         self.rb_alpha = rb_alpha
         self.proj = None
         self.track_grad_kurtosis = track_grad_kurtosis
-        
+
         self.cos = None
         if self.track_grad_kurtosis:
             self.cos = nn.CosineSimilarity(dim=0, eps=1e-6)
@@ -104,7 +108,11 @@ class PPO:
 
         self.global_steps = 0
 
-    def train(self, advantages, rollouts, track_kurtosis_flag, use_disc_as_adv):
+        self.decay = decay
+        self.gailgamma = gailgamma
+
+    def train(self, advantages, rollouts, track_kurtosis_flag, use_disc_as_adv,
+              expert_dataset=None, obfilt=None, num_trajs=None):
         action_loss_epoch = 0
         trust_region_loss_epoch = 0
         value_loss_epoch = 0
@@ -212,33 +220,55 @@ class PPO:
                             gradient = torch.tensor([])
                             action_loss[batch_elt].backward(retain_graph=True)
                             for p in self.policy_params:
-                                gradient = torch.cat([gradient,torch.flatten(p.grad.data)])              
+                                gradient = torch.cat([gradient, torch.flatten(p.grad.data)])
                             if e == 0:
-                                on_policy_norms.append(gradient.norm(2))                                
+                                on_policy_norms.append(gradient.norm(2))
                             elif e == self.policy_epoch - 1:
-                                off_policy_norms.append(gradient.norm(2))                                
+                                off_policy_norms.append(gradient.norm(2))
                             gradients.append(gradient)
-                            self.optimizer_policy.zero_grad()                                        
+                            self.optimizer_policy.zero_grad()
                         if e == 0:
-                            on_policy_cos_gradients = [self.cos(p1, p2).item() for p1 in gradients for p2 in gradients if not torch.equal(p1, p2)]
+                            on_policy_cos_gradients = [self.cos(p1, p2).item() for p1 in gradients for p2 in gradients
+                                                       if not torch.equal(p1, p2)]
                         elif e == self.policy_epoch - 1:
-                            off_policy_cos_gradients = [self.cos(p1, p2).item() for p1 in gradients for p2 in gradients if not torch.equal(p1, p2)]
-                    
+                            off_policy_cos_gradients = [self.cos(p1, p2).item() for p1 in gradients for p2 in gradients
+                                                        if not torch.equal(p1, p2)]
+
                 # Trust region loss
                 trust_region_loss = None
                 if self.proj is not None:
                     trust_region_loss = self.proj.get_trust_region_loss(dist, new_dist)
+                bcloss = None
+                if expert_dataset:
+                    for exp_state, exp_action in expert_dataset:
+                        """for traj in range(num_trajs):
+                            expert_state = obfilt(tracking_trajs['states'][traj].numpy(), update=False)
+                            expert_state = torch.FloatTensor(expert_state).to("cpu")
+                            _, expert_dist = self.actor_critic.evaluate_actions(expert_state)
+                            expert_action = tracking_trajs['actions'][traj].to("cpu")
 
+                            expert_action_log_probs = expert_dist.log_probs(expert_action)
+                            bcloss -= expert_action_log_probs.mean()"""
+                        if obfilt:
+                            exp_state = obfilt(exp_state.numpy(), update=False)
+                            exp_state = torch.FloatTensor(exp_state)
+                        exp_state = Variable(exp_state).to(action_loss.device)
+                        exp_action = Variable(exp_action).to(action_loss.device)
+                        _, expert_dist = self.actor_critic.evaluate_actions(exp_state)
+                        expert_action_log_probs = expert_dist.log_probs(exp_action)
+                        bcloss = -expert_action_log_probs.mean()
+                        # Multiply this coeff with decay factor
+                        break
                 value_loss = None
                 if not use_disc_as_adv:
                     if self.use_clipped_value_loss:
                         value_pred_clipped = value_preds_batch + \
-                                            (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
+                                             (values - value_preds_batch).clamp(-self.clip_param, self.clip_param)
                         value_losses = (values - return_batch).pow(2)
                         value_losses_clipped = (
                                 value_pred_clipped - return_batch).pow(2)
                         value_loss = 0.5 * torch.max(value_losses,
-                                                    value_losses_clipped)
+                                                     value_losses_clipped)
                     else:
                         value_loss = 0.5 * (return_batch - values).pow(2)
 
@@ -276,7 +306,7 @@ class PPO:
                         self.optimizer_policy.zero_grad()
 
                     flattened_mu = torch.mean(torch.stack(grads), dim=0)
-                    #WEISZFELD Algorithm (https://arxiv.org/pdf/2102.10264.pdf page 15)
+                    # WEISZFELD Algorithm (https://arxiv.org/pdf/2102.10264.pdf page 15)
                     for w_iter in range(self.weiszfeld_iterations):
                         d_j = []
                         flattened_mu_old = flattened_mu.clone()
@@ -292,7 +322,8 @@ class PPO:
                         k += p.grad.numel()
                     action_loss = action_loss.mean()
                 else:
-                    action_loss = action_loss.mean()
+                    action_loss = self.gailgamma * bcloss + (1 - self.gailgamma) * action_loss.mean()
+                    #action_loss = action_loss.mean()
                     loss = action_loss - dist_entropy * self.entropy_coef
                     if self.proj is not None:
                         loss += trust_region_loss
@@ -316,53 +347,54 @@ class PPO:
                     value_loss.backward()
                     if self.gradient_clipping:
                         nn.utils.clip_grad_norm_(self.vf_params,
-                                                self.max_grad_norm)
+                                                 self.max_grad_norm)
                     self.optimizer_vf.step()
                     value_loss_epoch += value_loss.item()
-                
-                
+
                 if track_kurtosis_flag:
                     for p in self.vf_params:
                         param_norm = p.grad.data.norm(2)
                         total_critic_norm += param_norm.item() ** 2
                     critic_grad_norms.append(total_critic_norm ** (1. / 2))
 
-                
                 action_loss_epoch += action_loss.mean().item()
 
                 if trust_region_loss:
                     trust_region_loss_epoch += trust_region_loss.item()
-        
+
         on_policy_kurtosis = None
         off_policy_kurtosis = None
         on_policy_value_kurtosis = None
         off_policy_value_kurtosis = None
-        
-        on_policy_cos_mean = None 
-        off_policy_cos_mean = None 
-        on_policy_cos_median = None 
+
+        on_policy_cos_mean = None
+        off_policy_cos_mean = None
+        on_policy_cos_median = None
         off_policy_cos_median = None
-        
+
         if track_kurtosis_flag:
             on_policy_kurtosis = compute_kurtosis(on_policy_norms)
             off_policy_kurtosis = compute_kurtosis(off_policy_norms)
             on_policy_value_kurtosis = compute_kurtosis(on_policy_value_norms)
             off_policy_value_kurtosis = compute_kurtosis(off_policy_value_norms)
-            
+
             on_policy_cos_mean = np.mean(on_policy_cos_gradients)
-            on_policy_cos_median = np.median(on_policy_cos_gradients)            
+            on_policy_cos_median = np.median(on_policy_cos_gradients)
             off_policy_cos_mean = np.mean(off_policy_cos_gradients)
             off_policy_cos_median = np.median(off_policy_cos_gradients)
 
+        if self.gailgamma is not None:
+            self.gailgamma *= self.decay
+            print('Gamma: {}'.format(self.gailgamma))
         return action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, \
                on_policy_kurtosis, off_policy_kurtosis, on_policy_value_kurtosis, \
                off_policy_value_kurtosis, policy_grad_norms, critic_grad_norms, ratios_list, \
                on_policy_cos_mean, off_policy_cos_mean, on_policy_cos_median, off_policy_cos_median
 
-    def update(self, rollouts, iteration, use_disc_as_adv):
+    def update(self, rollouts, iteration, use_disc_as_adv, expert_dataset=None, obfilt=None, num_trajs=None):
         self.global_steps += 1
         advantages = None
-        
+
         if use_disc_as_adv:
             advantages = rollouts.rewards
             advantages = (advantages - advantages.mean()) / (
@@ -371,7 +403,7 @@ class PPO:
             advantages = rollouts.returns[:-1] - rollouts.value_preds[:-1]
 
             advantages = (advantages - advantages.mean()) / (
-                    advantages.std() + 1e-5)        
+                    advantages.std() + 1e-5)
         track_kurtosis_flag = False
         if self.track_grad_kurtosis:
             track_kurtosis_flag = (iteration % 30 == 0)
@@ -380,7 +412,8 @@ class PPO:
         policy_grad_norms, critic_grad_norms, ratios_list, \
         on_policy_cos_mean, off_policy_cos_mean, on_policy_cos_median, off_policy_cos_median = \
             self.train(advantages=advantages, rollouts=rollouts,
-                       track_kurtosis_flag=track_kurtosis_flag, use_disc_as_adv=use_disc_as_adv)
+                       track_kurtosis_flag=track_kurtosis_flag, use_disc_as_adv=use_disc_as_adv,
+                       expert_dataset=expert_dataset, obfilt=obfilt, num_trajs=num_trajs)
 
         # TODO: Find a nicer way to get all obs and old means and stddev
         metrics = None
