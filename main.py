@@ -104,9 +104,6 @@ def main(config=None, args_dict=None, overwrite=False):
         envs.observation_space.shape,
         envs.action_space)
     actor_critic.to(device)
-    args_dict['decay'] = 10.0
-    args_dict['gailgamma'] = 0.5
-    args_dict['bcgail'] = True
     # If BCGAIL, then decay factor and gamma should be float
     if args_dict['bcgail']:
         assert type(args_dict['decay']) == float
@@ -158,7 +155,8 @@ def main(config=None, args_dict=None, overwrite=False):
             trust_region_coeff=args_dict['trust_region_coeff'],
             target_entropy=args_dict['target_entropy'],
             decay=args_dict['decay'],
-            gailgamma=args_dict['gailgamma'])
+            gailgamma=args_dict['gailgamma'],
+            use_bcgail=args_dict['bcgail'])
     elif args_dict['algo'] == 'trpo':
         agent = trpo.TRPO(actor_critic=actor_critic,
                           vf_epoch=args_dict['vf_epoch'],

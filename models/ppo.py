@@ -48,7 +48,8 @@ class PPO:
                  trust_region_coeff=8.0,
                  target_entropy=0,
                  decay=10,
-                 gailgamma=1):
+                 gailgamma=1,
+                 use_bcgail= False):
 
         assert sum([use_kl_penalty, clip_importance_ratio, use_projection,
                     use_rollback, use_tr_ppo, use_truly_ppo]) == 1
@@ -110,6 +111,7 @@ class PPO:
 
         self.decay = decay
         self.gailgamma = gailgamma
+        self.use_bcgail = use_bcgail
 
     def train(self, advantages, rollouts, track_kurtosis_flag, use_disc_as_adv,
               expert_dataset=None, obfilt=None, num_trajs=None):
@@ -239,16 +241,8 @@ class PPO:
                 if self.proj is not None:
                     trust_region_loss = self.proj.get_trust_region_loss(dist, new_dist)
                 bcloss = None
-                if expert_dataset:
+                if self.use_bcgail:
                     for exp_state, exp_action in expert_dataset:
-                        """for traj in range(num_trajs):
-                            expert_state = obfilt(tracking_trajs['states'][traj].numpy(), update=False)
-                            expert_state = torch.FloatTensor(expert_state).to("cpu")
-                            _, expert_dist = self.actor_critic.evaluate_actions(expert_state)
-                            expert_action = tracking_trajs['actions'][traj].to("cpu")
-
-                            expert_action_log_probs = expert_dist.log_probs(expert_action)
-                            bcloss -= expert_action_log_probs.mean()"""
                         if obfilt:
                             exp_state = obfilt(exp_state.numpy(), update=False)
                             exp_state = torch.FloatTensor(exp_state)
@@ -322,7 +316,10 @@ class PPO:
                         k += p.grad.numel()
                     action_loss = action_loss.mean()
                 else:
-                    action_loss = self.gailgamma * bcloss + (1 - self.gailgamma) * action_loss.mean()
+                    if self.use_bcgail:
+                        action_loss = self.gailgamma * bcloss + (1 - self.gailgamma) * action_loss.mean()
+                    else:
+                        action_loss = action_loss.mean()
                     #action_loss = action_loss.mean()
                     loss = action_loss - dist_entropy * self.entropy_coef
                     if self.proj is not None:
@@ -383,7 +380,7 @@ class PPO:
             off_policy_cos_mean = np.mean(off_policy_cos_gradients)
             off_policy_cos_median = np.median(off_policy_cos_gradients)
 
-        if self.gailgamma is not None:
+        if self.use_bcgail:
             self.gailgamma *= self.decay
             print('Gamma: {}'.format(self.gailgamma))
         return action_loss_epoch, value_loss_epoch, trust_region_loss_epoch, \
