@@ -183,7 +183,7 @@ class BaseProjectionLayer(object):
     def __call__(self, p_dist: FixedNormal, q_dist: FixedNormal, step, *args, **kwargs):
         # entropy_bound = self.policy.entropy(q) - self.target_entropy
         entropy_bound = self.entropy_schedule(self.initial_entropy, self.target_entropy, self.temperature,
-                                              step) * p_dist.mean.new_ones(p_dist.mean.shape[0])
+                                              step) * p_dist.mean.new_ones(p_dist.mean.shape[0])        
         return self._projection(p_dist, q_dist, self.mean_bound, self.cov_bound, entropy_bound, **kwargs)
 
     def _trust_region_projection(self, p_dist: FixedNormal, q_dist: FixedNormal,
@@ -274,8 +274,7 @@ class BaseProjectionLayer(object):
         mean_diff, cov_diff = self.trust_region_value(p_dist, p_target)
 
         # delta_loss = (mean_diff + cov_diff if policy.contextual_std else mean_diff).mean()
-        delta_loss = mean_diff.mean()
-
+        delta_loss = (mean_diff + cov_diff).mean()        
         return delta_loss * self.trust_region_coeff
 
     def compute_metrics(self, p_dist: FixedNormal, q_dist: FixedNormal) -> dict:
