@@ -17,7 +17,6 @@ from evaluation import evaluate
 from torch.utils.tensorboard import SummaryWriter
 import mj_envs
 
-
 def main(config=None, args_dict=None, overwrite=False):
     if args_dict is None:
         args_dict = get_args_dict(config=config)
@@ -53,12 +52,8 @@ def main(config=None, args_dict=None, overwrite=False):
               'action_loss_epoch', 'trust_region_loss_epoch', 'kl_mean', 'vf_diff',
               'tracking_log_probs_mean', 'tracking_log_probs_median',
               'tracking_diff_actions_norm_mean', 'tracking_diff_actions_norm_median',
-              'entropy_mean', 'entropy_diff_mean', 'on_policy_kurtosis',
-              'off_policy_kurtosis', 'on_policy_value_kurtosis',
-              'off_policy_value_kurtosis', 'on_policy_cos_mean',
-              'off_policy_cos_mean', 'on_policy_cos_median',
-              'off_policy_cos_median']
-    fnames_policy_grads = ['iteration', 'total_num_steps', 'policy_grad_norm', 'critic_grad_norm']
+              'entropy_mean', 'entropy_diff_mean']
+
     fnames_grads = ['iteration', 'total_num_steps', 'disc_grad_norm', 'acc_expert', 'acc_policy']
     fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values', 'tracking_diff_actions_norm']
     fnames_rollout = ['total_num_steps', 'pair_id', 'ratios', 'advantages',
@@ -125,13 +120,6 @@ def main(config=None, args_dict=None, overwrite=False):
             value_loss_coef=args_dict['value_loss_coef'],
             entropy_coef=args_dict['entropy_coef'],
             num_steps=args_dict['num_steps'],
-            use_kl_penalty=args_dict['use_kl_penalty'],
-            use_rollback=args_dict['use_rollback'],
-            use_tr_ppo=args_dict['use_tr_ppo'],
-            use_truly_ppo=args_dict['use_truly_ppo'],
-            rb_alpha=args_dict['rb_alpha'],
-            beta=args_dict['start_beta'],
-            kl_target=args_dict['kl_target'],
             lr_value=args_dict['lr_value'],
             lr_policy=args_dict['lr_policy'],
             eps=args_dict['eps'],
@@ -139,7 +127,6 @@ def main(config=None, args_dict=None, overwrite=False):
             max_grad_norm=args_dict['max_grad_norm'],
             use_clipped_value_loss=args_dict['use_clipped_value_loss'],
             use_projection=args_dict['use_projection'],
-            track_grad_kurtosis=args_dict['track_grad_kurtosis'],
             action_space=envs.action_space,
             total_train_steps=num_updates,
             entropy_schedule=args_dict['entropy_schedule'],
@@ -147,8 +134,6 @@ def main(config=None, args_dict=None, overwrite=False):
             entropy_eq=args_dict['entropy_eq'],
             entropy_first=args_dict['entropy_first'],
             clip_importance_ratio=args_dict['clip_importance_ratio'],
-            use_gmom=args_dict['use_gmom'],
-            weiszfeld_iterations=args_dict['weiszfeld_iterations'],
             gradient_clipping=args_dict['gradient_clipping'],
             mean_bound=args_dict['mean_bound'],
             cov_bound=args_dict['cov_bound'],
@@ -294,10 +279,7 @@ def main(config=None, args_dict=None, overwrite=False):
             rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['use_td'], args_dict['gamma'],
                                      args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
 
-        metrics = agent.update(rollouts, j, args_dict['use_disc_as_adv'], expert_dataset=gail_train_loader,
-                               obfilt=utils.utils.get_vec_normalize(envs)._obfilt,
-                               num_trajs=args_dict['num_trajectories'])
-
+        metrics = agent.update(rollouts, expert_dataset=gail_train_loader, obfilt=utils.utils.get_vec_normalize(envs)._obfilt)
         rollouts.after_update()
         total_num_steps = (j + 1) * args_dict['num_processes'] * args_dict['num_steps']
         if j % args_dict['log_interval'] == 0 and len(episode_rewards) > 1:
@@ -434,25 +416,6 @@ def main(config=None, args_dict=None, overwrite=False):
                                   tracking_diff_actions_norm_mean, total_num_steps)
                 writer.add_scalar('tracking_diff_actions_norm_median',
                                   tracking_diff_actions_norm_median, total_num_steps)
-            if (metrics['on_policy_kurtosis']):
-                writer.add_scalar('on_policy_kurtosis',
-                                  metrics['on_policy_kurtosis'], total_num_steps)
-                writer.add_scalar('off_policy_kurtosis',
-                                  metrics['off_policy_kurtosis'], total_num_steps)
-                writer.add_scalar('on_policy_value_kurtosis',
-                                  metrics['on_policy_value_kurtosis'], total_num_steps)
-                writer.add_scalar('off_policy_value_kurtosis',
-                                  metrics['off_policy_value_kurtosis'], total_num_steps)
-
-                writer.add_scalar('on_policy_cos_mean',
-                                  metrics['on_policy_cos_mean'], total_num_steps)
-                writer.add_scalar('off_policy_cos_mean',
-                                  metrics['off_policy_cos_mean'], total_num_steps)
-                writer.add_scalar('on_policy_cos_median',
-                                  metrics['on_policy_cos_median'], total_num_steps)
-                writer.add_scalar('off_policy_cos_median',
-                                  metrics['off_policy_cos_median'], total_num_steps)
-
         if args_dict['logging']:
             if args_dict['track_vf'] and j % 30 == 0:
                 for i in range(tracking_adv.shape[0]):
@@ -487,15 +450,7 @@ def main(config=None, args_dict=None, overwrite=False):
                                  'tracking_diff_actions_norm_mean': tracking_diff_actions_norm_mean,
                                  'tracking_diff_actions_norm_median': tracking_diff_actions_norm_median,
                                  'entropy_mean': metrics['entropy'].item(),
-                                 'entropy_diff_mean': metrics['entropy_diff'].item(),
-                                 'on_policy_kurtosis': metrics['on_policy_kurtosis'],
-                                 'off_policy_kurtosis': metrics['off_policy_kurtosis'],
-                                 'on_policy_value_kurtosis': metrics['on_policy_value_kurtosis'],
-                                 'off_policy_value_kurtosis': metrics['off_policy_value_kurtosis'],
-                                 'on_policy_cos_mean': metrics['on_policy_cos_mean'],
-                                 'off_policy_cos_mean': metrics['off_policy_cos_mean'],
-                                 'on_policy_cos_median': metrics['on_policy_cos_median'],
-                                 'off_policy_cos_median': metrics['off_policy_cos_median']})
+                                 'entropy_diff_mean': metrics['entropy_diff'].item()})
 
             if metrics['policy_grad_norms'] is not None:
                 for i, _ in enumerate(metrics['policy_grad_norms']):
