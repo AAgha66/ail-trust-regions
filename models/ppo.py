@@ -23,7 +23,7 @@ class PPO:
                  max_grad_norm=None,
                  use_clipped_value_loss=True,
                  use_projection=True,
-                 action_space=6,
+                 action_space=None,
                  total_train_steps=None,
                  entropy_schedule='None',
                  scale_prec=True,
@@ -63,6 +63,7 @@ class PPO:
         self.proj = None        
         self.cos = None
         self.capg = True
+        self.action_space = action_space
 
         if use_projection:
             self.proj = get_projection_layer(proj_type=proj_type, mean_bound=mean_bound,
@@ -112,8 +113,8 @@ class PPO:
 
                 
                 if self.capg:              
-                    old_action_log_probs_batch = old_dist.log_probs_clipped(actions_batch)
-                    action_log_probs = new_dist.log_probs_clipped(actions_batch)
+                    old_action_log_probs_batch = old_dist.log_probs_clipped(actions_batch, self.action_space)
+                    action_log_probs = new_dist.log_probs_clipped(actions_batch, self.action_space)
                 else:
                     old_action_log_probs_batch = old_dist.log_probs(actions_batch)
                     action_log_probs = new_dist.log_probs(actions_batch)
