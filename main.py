@@ -56,11 +56,9 @@ def main(config=None, args_dict=None, overwrite=False):
 
     fnames_grads = ['iteration', 'total_num_steps', 'disc_grad_norm', 'acc_expert', 'acc_policy']
     fnames_adv = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'values', 'tracking_diff_actions_norm']
-    fnames_rollout = ['total_num_steps', 'pair_id', 'ratios', 'advantages',
-                      'rewards', 'returns', 'values']
+    fnames_rollout = ['total_num_steps', 'pair_id', 'advantages', 'rewards', 'returns', 'values']
 
     csv_writer = None
-    csv_writer_policy_grads = None
     csv_writer_grads = None
     csv_writer_adv = None
     csv_writer_rollout = None
@@ -74,8 +72,6 @@ def main(config=None, args_dict=None, overwrite=False):
         csv_writer_rollout = csv.DictWriter(f_rollout, fieldnames=fnames_rollout)
         csv_writer_rollout.writeheader()
 
-        csv_writer_policy_grads = csv.DictWriter(f_policy_grads, fieldnames=fnames_policy_grads)
-        csv_writer_policy_grads.writeheader()
         with open(log_dir_ + '/args.yml', 'w') as outfile:
             yaml.dump(args_dict, outfile, default_flow_style=False)
 
@@ -430,8 +426,6 @@ def main(config=None, args_dict=None, overwrite=False):
                 for i, _ in enumerate(rollouts.rewards):
                     csv_writer_rollout.writerow({'total_num_steps': total_num_steps,
                                                  'pair_id': i,
-                                                 'ratios': metrics['ratios_list'][i] if metrics[
-                                                                                            'ratios_list'] is not None else None,
                                                  'advantages': (rollouts.returns[i] - rollouts.value_preds[i]).item(),
                                                  'rewards': rollouts.rewards[i].item(),
                                                  'returns': rollouts.returns[i].item(),
@@ -451,19 +445,6 @@ def main(config=None, args_dict=None, overwrite=False):
                                  'tracking_diff_actions_norm_median': tracking_diff_actions_norm_median,
                                  'entropy_mean': metrics['entropy'].item(),
                                  'entropy_diff_mean': metrics['entropy_diff'].item()})
-
-            if metrics['policy_grad_norms'] is not None:
-                for i, _ in enumerate(metrics['policy_grad_norms']):
-                    csv_writer_policy_grads.writerow({'iteration': policy_iters,
-                                                      'total_num_steps': total_num_steps,
-                                                      'policy_grad_norm': metrics['policy_grad_norms'][i],
-                                                      'critic_grad_norm': metrics['critic_grad_norms'][i]})
-                    if args_dict['summary']:
-                        writer.add_scalar('policy_grad_norm',
-                                          metrics['policy_grad_norms'][i], policy_iters)
-                        writer.add_scalar('critic_grad_norm',
-                                          metrics['critic_grad_norms'][i], policy_iters)
-                    policy_iters += 1
 
             for i, _ in enumerate(acc_expert):
                 csv_writer_grads.writerow({'iteration': gail_iters,
