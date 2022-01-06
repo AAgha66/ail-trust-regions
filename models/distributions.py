@@ -33,6 +33,19 @@ class FixedNormal(torch.distributions.Normal):
     def log_probs(self, actions):
         return super().log_prob(actions).sum(-1, keepdim=True)
 
+    def log_probs_clipped(self, actions):
+        unclipped_elementwise_log_prob = super().log_prob(actions)
+        low_log_prob = torch.log(super().cdf(actions))
+        high_log_prob = torch.log(1.0 - super().cdf(actions))
+        elementwise_log_prob = torch.where(
+            (actions <= self.low.data),
+            low_log_prob,
+            torch.where(
+                actions >= self.high.data,
+                high_log_prob,
+                unclipped_elementwise_log_prob))
+        return torch.sum(elementwise_log_prob, axis=-1)
+
     def entropy(self):
         return super().entropy().sum(-1)
 

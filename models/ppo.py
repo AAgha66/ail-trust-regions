@@ -62,6 +62,7 @@ class PPO:
 
         self.proj = None        
         self.cos = None
+        self.capg = True
 
         if use_projection:
             self.proj = get_projection_layer(proj_type=proj_type, mean_bound=mean_bound,
@@ -109,8 +110,15 @@ class PPO:
                 else:
                     new_dist = dist
 
-                old_action_log_probs_batch = old_dist.log_probs(actions_batch)
-                action_log_probs = new_dist.log_probs(actions_batch)
+                
+                if self.capg:              
+                    old_action_log_probs_batch = old_dist.log_probs_clipped(actions_batch)
+                    action_log_probs = new_dist.log_probs_clipped(actions_batch)
+                else:
+                    old_action_log_probs_batch = old_dist.log_probs(actions_batch)
+                    action_log_probs = new_dist.log_probs(actions_batch)
+
+                
                 dist_entropy = new_dist.entropy().mean()
 
                 ratio = torch.exp(action_log_probs -
