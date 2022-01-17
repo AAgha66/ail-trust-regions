@@ -62,7 +62,6 @@ class PPO:
 
         self.proj = None        
         self.cos = None
-        self.capg = True
         self.action_space = action_space
 
         if use_projection:
@@ -111,14 +110,8 @@ class PPO:
                 else:
                     new_dist = dist
 
-                
-                if self.capg:              
-                    old_action_log_probs_batch = old_dist.log_probs_clipped(actions_batch, self.action_space)
-                    action_log_probs = new_dist.log_probs_clipped(actions_batch, self.action_space)
-                else:
-                    old_action_log_probs_batch = old_dist.log_probs(actions_batch)
-                    action_log_probs = new_dist.log_probs(actions_batch)
-
+                old_action_log_probs_batch = old_dist.log_probs(actions_batch)
+                action_log_probs = new_dist.log_probs(actions_batch)
                 
                 dist_entropy = new_dist.entropy().mean()
 
