@@ -4,7 +4,7 @@
  gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
- lr_disc: 3.0e-5
+ lr_disc: 1.0e-5
  num_trajectories: 4
  gradient_penalty: False
  spectral_norm: False
@@ -20,12 +20,11 @@
  seed: 0
  cuda_deterministic: False
  num_processes: 1
- num_steps: 2048
+ num_steps: 16384
 
  policy_epoch: 20
- vf_epoch: 10
 
- mini_batch_size: 32
+ mini_batch_size: 256
  clip_param: 0.2
  
  logging: False
@@ -37,7 +36,7 @@
  eval_interval: 4
  
  num_env_steps: 1.5e+6
- env_name: 'HalfCheetah-v2'
+ env_name: 'door-v0'
  logging_dir: './logs_gail_reward/'
  log_dir: '/home/kit/anthropomatik/kn6273/gym'
  no_cuda: True
@@ -50,8 +49,8 @@
  norm_reward: False
  clip_obs: 1.0e+6
  clip_reward: 1.0e+6
- lr_policy: 3.0e-4
- lr_value: 3.0e-4
+ lr_policy: 0.0001
+ lr_value: 0.0003
 
  clip_importance_ratio: False
  use_kl_penalty: False
@@ -67,13 +66,13 @@
 
  use_projection: True
  proj_type: 'kl'
- mean_bound: 0.03
- cov_bound: 0.0005
+ mean_bound: 0.099
+ cov_bound: 4.4e-05
  trust_region_coeff: 8.0
- entropy_schedule: 'exp'
+ entropy_schedule: 'None'
  scale_prec: True
- entropy_eq: True
- entropy_first: True
+ entropy_eq: False
+ entropy_first: False
  target_entropy: 0
 
  use_gae: True

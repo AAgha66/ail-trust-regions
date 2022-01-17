@@ -1,7 +1,7 @@
  algo: 'trpo'
 
  use_gail: True
- gail_experts_dir: './gail_experts/'
+ gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
  lr_disc: 0.0003
@@ -28,18 +28,18 @@
  mini_batch_size: 64
  clip_param: 0.2
 
- logging: False
- summary: False
- track_vf: False
- track_grad_kurtosis: False
- save_model: False
+ logging: True
+ summary: True
+ track_vf: True
+ track_grad_kurtosis: True
+ save_model: True
  log_interval: 2
  eval_interval: 4
 
  num_env_steps: 25.0e+6
  env_name: 'HalfCheetah-v2'
  logging_dir: 'log/'
- log_dir: '/tmp/gym/'
+ log_dir: '/home/kit/anthropomatik/kn6273/gym'
  no_cuda: True
  use_proper_time_limits: True
 

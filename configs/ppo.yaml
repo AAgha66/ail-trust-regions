@@ -1,7 +1,7 @@
  algo: 'ppo'
 
  use_gail: False
- gail_experts_dir: './gail_experts/'
+ gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
  lr_disc: 1.0e-3
@@ -38,7 +38,7 @@
  num_env_steps: 1.0e+6
  env_name: 'HalfCheetah-v2'
  logging_dir: './logs_ppo/'
- log_dir: '/tmp/gym/'
+ log_dir: '/home/kit/anthropomatik/kn6273/gym'    
  no_cuda: True
  use_proper_time_limits: True
 
