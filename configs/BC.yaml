@@ -1,0 +1,35 @@
+ algo: 'ppo'
+
+ gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
+ gail_batch_size: 32
+ num_trajectories: 16
+ 
+ eps: 1.0e-5
+ gamma: 0.99
+ max_grad_norm: 0.5
+
+ seed: 0
+ cuda_deterministic: False
+ num_processes: 1
+ num_steps: 16384
+
+ logging: True
+ summary: True
+ track_vf: True
+ save_model: True
+ log_interval: 2
+ eval_interval: 4
+ track_interval: 10
+ 
+ num_env_steps: 10.0e+6
+ env_name: 'hammer-v0'
+ logging_dir: './logs_bc/'
+ log_dir: '/home/kit/anthropomatik/kn6273/gym'
+
+ norm_obs: True
+ norm_reward: False
+ clip_obs: 1.0e+6
+ clip_reward: 1.0e+6
+ lr_policy: 3.0e-4
+
+ no_cuda: True
