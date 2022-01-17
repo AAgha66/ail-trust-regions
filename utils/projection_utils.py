@@ -160,7 +160,7 @@ def get_entropy_schedule(schedule_type, total_train_steps, dim):
         return lambda initial_entropy, target_entropy, temperature, step: step * (
                 target_entropy - initial_entropy) / total_train_steps + initial_entropy
     elif schedule_type == "exp":
-        return lambda initial_entropy, target_entropy, temperature, step: dim * target_entropy + (
-                initial_entropy - dim * target_entropy) * temperature ** (10 * step / total_train_steps)
+        return lambda initial_entropy, target_entropy, temperature, step: target_entropy + (
+                initial_entropy - target_entropy) * temperature ** (10 * step / total_train_steps)
     else:
         return lambda initial_entropy, target_entropy, temperature, step: initial_entropy.new([-np.inf])
