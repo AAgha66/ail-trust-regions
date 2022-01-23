@@ -21,6 +21,7 @@
  cuda_deterministic: False
  num_processes: 1
  num_steps: 2048
+ cuda: False
 
  policy_epoch: 10
 
@@ -31,15 +32,16 @@
  summary: True
  track_vf: True
  save_model: False
- log_interval: 2
- eval_interval: 1.0e+3
+ log_interval: 2048
+ eval_interval: 4096
 
  num_env_steps: 1.0e+6
  env_name: 'HalfCheetah-v2'
- log_dir: '/home/kit/anthropomatik/kn6273/gym/'
+ logging_dir: './logs_gail_tr_ppo/'
+ log_dir: '/tmp/gym/'
 
- norm_obs: True
- norm_reward: True
+ norm_obs: False
+ norm_reward: False
  clip_obs: 1.0e+6
  clip_reward: 1.0e+6
  lr_policy: 1.0e-3
@@ -53,3 +55,4 @@
  epochs: 100
  replay_size: 1.0e+6
  num_test_episodes: 10
+
