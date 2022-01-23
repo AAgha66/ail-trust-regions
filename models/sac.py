@@ -135,5 +135,5 @@ class SAC:
                 p_targ.data.add_((1 - self.polyak) * p.data)
 
     def get_action(self, o, deterministic=False):
-        return self.ac.act(torch.as_tensor(o, dtype=torch.float32),
-                           deterministic)
+        a = self.ac.act(torch.as_tensor(o, dtype=torch.float32), deterministic)
+        return torch.from_numpy(a)
