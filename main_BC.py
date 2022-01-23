@@ -22,7 +22,7 @@ def main(config=None, args_dict=None, overwrite=False):
     if args_dict is None:
         args_dict = get_args_dict(config=config)
 
-    exp_name = "BC"
+    exp_name = "BC_" + str(args_dict['num_trajectories'])
     log_dir_ = args_dict['logging_dir'] + args_dict['env_name'] + '/' + exp_name
 
     f = None
