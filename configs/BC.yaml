@@ -2,7 +2,7 @@
 
  gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
  gail_batch_size: 32
- num_trajectories: 16
+ num_trajectories: 4
  
  eps: 1.0e-5
  gamma: 0.99
@@ -32,4 +32,4 @@
  clip_reward: 1.0e+6
  lr_policy: 3.0e-4
 
- no_cuda: True
+ cuda: False

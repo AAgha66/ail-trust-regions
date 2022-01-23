@@ -40,7 +40,7 @@
  env_name: 'HalfCheetah-v2'
  logging_dir: 'log/'
  log_dir: '/home/kit/anthropomatik/kn6273/gym'
- no_cuda: True
+ cuda: False
  use_proper_time_limits: True
 
  gradient_clipping: False

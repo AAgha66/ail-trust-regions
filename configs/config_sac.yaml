@@ -36,7 +36,7 @@
 
  num_env_steps: 1.0e+6
  env_name: 'HalfCheetah-v2'
- log_dir: '/tmp/gym/'
+ log_dir: '/home/kit/anthropomatik/kn6273/gym/'
 
  norm_obs: True
  norm_reward: True

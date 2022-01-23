@@ -39,7 +39,7 @@
  env_name: 'HalfCheetah-v2'
  logging_dir: './logs_ppo/'
  log_dir: '/tmp/gym/'
- no_cuda: True
+ cuda: False
  use_proper_time_limits: True
 
  gradient_clipping: True
