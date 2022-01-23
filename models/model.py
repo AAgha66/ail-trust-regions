@@ -34,6 +34,16 @@ class Policy(nn.Module):
 
         return value, action, dist
 
+    def get_action(self, inputs, deterministic=False):
+        value, actor_features = self.base(inputs)
+        dist = self.dist(actor_features)
+
+        if deterministic:
+            action = dist.mode()
+        else:
+            action = dist.sample()
+        return action
+
     def get_value(self, inputs):
         value, _ = self.base(inputs)
         return value
