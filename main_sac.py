@@ -7,6 +7,7 @@ import utils.utils
 from collections import deque
 from utils.envs import make_vec_envs
 from evaluation import evaluate
+from models import gail
 
 
 def main(config=None, args_dict=None, overwrite=False):
@@ -21,6 +22,7 @@ def main(config=None, args_dict=None, overwrite=False):
 
     torch.manual_seed(args_dict['seed'])
     torch.cuda.manual_seed_all(args_dict['seed'])
+    np.random.seed(args_dict['seed'])
 
     torch.set_num_threads(1)
     device = torch.device("cuda:0" if args_dict['cuda'] else "cpu")
@@ -32,6 +34,36 @@ def main(config=None, args_dict=None, overwrite=False):
     env.action_space.seed(args_dict['seed'])
     obs_dim = env.observation_space.shape
     act_dim = env.action_space.shape[0]
+
+    discr = None
+    gail_train_loader = None
+    if args_dict['use_gail']:
+        file_name = args_dict['gail_experts_dir'] + args_dict['env_name'] + \
+                    '_num_traj_' + str(args_dict['num_trajectories']) + '.pt'
+        subsample_frequency = None
+        if args_dict['env_name'] == "Reacher-v2":
+            subsample_frequency = 1
+        elif args_dict['env_name'] == "door-v0" or args_dict['env_name'] == "hammer-v0" or args_dict[
+            'env_name'] == "relocate-v0":
+            subsample_frequency = 4
+        elif args_dict['env_name'] == "pen-v0":
+            subsample_frequency = 2
+        else:
+            subsample_frequency = 20
+        expert_dataset = gail.ExpertDataset(
+            file_name, num_trajectories=args_dict['num_trajectories'], subsample_frequency=subsample_frequency)
+        assert len(env.observation_space.shape) == 1
+        discr = gail.Discriminator(
+            input_dim=(env.observation_space.shape[0] + env.action_space.shape[0]),
+            hidden_dim=100, device=device, gradient_penalty=args_dict['gradient_penalty'], lr_disc=args_dict['lr_disc'],
+            spectral_norm=args_dict['spectral_norm'],
+            airl_reward=args_dict['airl_reward'])
+        drop_last = len(expert_dataset) > args_dict['gail_batch_size']
+        gail_train_loader = torch.utils.data.DataLoader(
+            dataset=expert_dataset,
+            batch_size=args_dict['gail_batch_size'],
+            shuffle=True,
+            drop_last=drop_last)
 
     agent = SAC(env)
     # Experience buffer
@@ -51,7 +83,7 @@ def main(config=None, args_dict=None, overwrite=False):
                 a = agent.get_action(o)
             else:
                 a = env.action_space.sample()
-                a = torch.from_numpy(a)
+                a = torch.unsqueeze(torch.from_numpy(a), dim=0)
 
         # Step the env
         o2, r, d, infos = env.step(a)
@@ -67,8 +99,22 @@ def main(config=None, args_dict=None, overwrite=False):
 
         # Update handling
         if t >= args_dict['update_after'] and t % args_dict['update_every'] == 0:
+            if args_dict['use_gail']:
+                gail_epoch = args_dict['gail_epoch']
+                if t < 10 * args_dict['update_after']:
+                    gail_epoch = 100  # Warm up
+                for _ in range(gail_epoch):
+                    # expert_batch = expert_dataset.sample_batch(batch_size=args_dict['gail_batch_size'])
+                    _, disc_grad_norm_epoch, acc_policy_epoch, acc_expert_epoch = \
+                        discr.update_sac(gail_train_loader, replay_buffer,
+                                         utils.utils.get_vec_normalize(env)._obfilt)
             for j in range(args_dict['update_every']):
                 batch = replay_buffer.sample_batch(args_dict['mini_batch_size'])
+                if args_dict['use_gail']:
+                    batch['rew'] = discr.predict_reward(
+                        batch['obs'], batch['act'], gamma=None, masks=d, update_rms=False,
+                        use_disc_as_adv=False)
+                    batch['rew'] = torch.squeeze(batch['rew'], dim=-1)
                 agent.update(data=batch)
 
         if t % args_dict['log_interval'] == 0 and len(episode_rewards) > 1:
