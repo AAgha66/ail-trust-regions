@@ -4,7 +4,7 @@
  gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
- lr_disc: 1.0e-5
+ lr_disc: 1.0e-6
  num_trajectories: 4
  gradient_penalty: False
  spectral_norm: False
@@ -24,9 +24,7 @@
  cuda: False
 
  policy_epoch: 10
-
- mini_batch_size: 100
- clip_param: 0.2
+ mini_batch_size: 256
 
  logging: True
  summary: True
@@ -35,9 +33,9 @@
  log_interval: 2048
  eval_interval: 4096
 
- num_env_steps: 1.0e+6
- env_name: 'HalfCheetah-v2'
- logging_dir: './logs_gail_tr_ppo/'
+ num_env_steps: 5.0e+6
+ env_name: 'Walker2d-v2'
+ logging_dir: './logs_gail_sac/'
  log_dir: '/tmp/gym/'
 
  norm_obs: False
@@ -51,8 +49,4 @@
  update_after: 1000
  update_every: 50
  polyak: 0.995
- steps_per_epoch: 1000
- epochs: 100
  replay_size: 1.0e+6
- num_test_episodes: 10
-
