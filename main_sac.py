@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+import os
+import shutil
 import argparse
 from models.sac import ReplayBuffer, SAC
 from utils.arguments import get_args_dict
@@ -8,6 +10,8 @@ from collections import deque
 from utils.envs import make_vec_envs
 from evaluation import evaluate
 from models import gail
+import csv
+import yaml
 
 
 def main(config=None, args_dict=None, overwrite=False):
@@ -19,6 +23,32 @@ def main(config=None, args_dict=None, overwrite=False):
 
     if args_dict is None:
         args_dict = get_args_dict(config=config)
+
+    f = None
+    if args_dict['logging']:
+        if os.path.isdir(log_dir_):
+            if overwrite:
+                shutil.rmtree(log_dir_)
+            else:
+                print("experiment already exists !")
+                return
+
+        os.makedirs(log_dir_)
+        os.makedirs(log_dir_ + '/summary')
+        os.makedirs(log_dir_ + '/logs')
+        os.makedirs(log_dir_ + '/models')
+
+        f = open(log_dir_ + '/logs/log.csv', 'w')
+
+    fnames = ['total_num_steps', 'mean_training_episode_reward', 'mean_eval_episode_rewards']
+
+    csv_writer = None
+    if args_dict['logging']:
+        csv_writer = csv.DictWriter(f, fieldnames=fnames)
+        csv_writer.writeheader()
+
+        with open(log_dir_ + '/args.yml', 'w') as outfile:
+            yaml.dump(args_dict, outfile, default_flow_style=False)
 
     torch.manual_seed(args_dict['seed'])
     torch.cuda.manual_seed_all(args_dict['seed'])
@@ -72,6 +102,7 @@ def main(config=None, args_dict=None, overwrite=False):
     # Prepare for interaction with environment
     o = env.reset()
     episode_rewards = deque(maxlen=5)
+    best_eval = -np.inf
     # Main loop: collect experience in env and update/log each epoch
     for t in range(int(args_dict['num_env_steps'])):
 
@@ -125,6 +156,7 @@ def main(config=None, args_dict=None, overwrite=False):
                             np.median(episode_rewards), np.min(episode_rewards),
                             np.max(episode_rewards)))
 
+        mean_eval_episode_rewards = None
         if t % args_dict['eval_interval'] == 0 and t > 0:
             obs_rms = utils.utils.get_vec_normalize(env).obs_rms
             mean_eval_episode_rewards = evaluate(agent, obs_rms, args_dict['env_name'], args_dict['seed'],
@@ -132,6 +164,20 @@ def main(config=None, args_dict=None, overwrite=False):
                                                  args_dict['norm_obs'], args_dict['norm_reward'], args_dict['clip_obs'],
                                                  args_dict['clip_reward'], device)
             print("step: {}, Evaluation: {}".format(t, mean_eval_episode_rewards))
+
+            if args_dict['save_model'] and mean_eval_episode_rewards >= best_eval:
+                torch.save([
+                    agent.ac.pi,
+                    getattr(utils.utils.get_vec_normalize(env), 'obs_rms', None)
+                ], os.path.join(log_dir_ + '/models', args_dict['env_name'] + ".pt"))
+                best_eval = mean_eval_episode_rewards
+
+        if args_dict['logging'] and t % args_dict['log_interval'] == 0 and len(episode_rewards) > 1:
+            csv_writer.writerow({'total_num_steps': t,
+                                 'mean_training_episode_reward': np.mean(episode_rewards),
+                                 'mean_eval_episode_rewards': mean_eval_episode_rewards})
+
+            f.flush()
 
 
 if __name__ == "__main__":
