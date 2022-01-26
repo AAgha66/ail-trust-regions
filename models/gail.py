@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data
 from torch import autograd
-
+import numpy as np
 from stable_baselines3.common.running_mean_std import RunningMeanStd
 
 
@@ -13,7 +13,7 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
 
         self.device = device
-        assert(not (spectral_norm and gradient_penalty))
+        assert (not (spectral_norm and gradient_penalty))
 
         if spectral_norm:
             self.trunk = nn.Sequential(
@@ -122,11 +122,61 @@ class Discriminator(nn.Module):
             grad_norms.append(total_norm ** (1. / 2))
         return loss / n, grad_norms, acc_policy, acc_expert
 
+    def update_sac(self, expert_loader, replay_buffer, obsfilt=None):
+        self.train()
+
+        loss = 0
+        n = 0
+        acc_policy = []
+        acc_expert = []
+        grad_norms = []
+        for expert_batch in expert_loader:
+            expert_state, expert_action = expert_batch
+            expert_state = obsfilt(expert_state.numpy(), update=False)
+            expert_state = torch.FloatTensor(expert_state).to(self.device)
+            expert_action = expert_action.to(self.device)
+            expert_d = self.trunk(
+                torch.cat([expert_state, expert_action], dim=1))
+            acc_expert.append(torch.sum(torch.sigmoid(expert_d) > 0.5) / expert_d.shape[0])
+
+            policy_batch = replay_buffer.sample_batch(expert_state.shape[0])
+            policy_state, policy_action = policy_batch['obs'], policy_batch['act']
+            policy_d = self.trunk(
+                torch.cat([policy_state, policy_action], dim=1))
+            acc_policy.append(torch.sum(torch.sigmoid(policy_d) < 0.5) / policy_d.shape[0])
+
+            expert_loss = F.binary_cross_entropy_with_logits(
+                expert_d,
+                torch.ones(expert_d.size()).to(self.device))
+            policy_loss = F.binary_cross_entropy_with_logits(
+                policy_d,
+                torch.zeros(policy_d.size()).to(self.device))
+
+            gail_loss = expert_loss + policy_loss
+
+            grad_pen = None
+            if self.gradient_penalty:
+                grad_pen = self.compute_grad_pen(expert_state, expert_action,
+                                                 policy_state, policy_action)
+                loss += (gail_loss + grad_pen).item()
+            else:
+                loss += (gail_loss).item()
+            n += 1
+
+            self.optimizer.zero_grad()
+            if self.gradient_penalty:
+                (gail_loss + grad_pen).backward()
+            else:
+                gail_loss.backward()
+            self.optimizer.step()
+
+        return loss / n, grad_norms, acc_policy, acc_expert
+
     def predict_reward(self, state, action, gamma, masks, update_rms=True, use_disc_as_adv=False):
         with torch.no_grad():
             self.eval()
             d = self.trunk(torch.cat([state, action], dim=1))
-            
+
             if self.airl_reward:
                 s = torch.sigmoid(d)
                 reward = torch.log(s + 1e-8) - torch.log(1 - s + 1e-8)
@@ -153,13 +203,13 @@ class ExpertDataset(torch.utils.data.Dataset):
 
         idx = None
         if tracking:
-            idx = list(range(0, num_trajectories))            
+            idx = list(range(0, num_trajectories))
         else:
             perm = torch.randperm(all_trajectories['states'].size(0))
             idx = perm[:num_trajectories]
 
         self.trajectories = {}
-
+        self.samples = {}
         # See https://github.com/pytorch/pytorch/issues/14886
         # .long() for fixing bug in torch v0.4.1
         start_idx = None
@@ -168,7 +218,7 @@ class ExpertDataset(torch.utils.data.Dataset):
         else:
             start_idx = torch.randint(
                 0, subsample_frequency, size=(num_trajectories,)).long()
-        
+
         for k, v in all_trajectories.items():
             data = v[idx]
 
@@ -176,7 +226,9 @@ class ExpertDataset(torch.utils.data.Dataset):
                 samples = []
                 for i in range(num_trajectories):
                     samples.append(data[i, start_idx[i]::subsample_frequency])
+
                 self.trajectories[k] = torch.stack(samples)
+                self.samples[k] = torch.cat(samples, dim=0)
             else:
                 self.trajectories[k] = data // subsample_frequency
 
@@ -211,3 +263,9 @@ class ExpertDataset(torch.utils.data.Dataset):
 
     def get_traj(self):
         return self.trajectories
+
+    def sample_batch(self, batch_size=32):
+        idxs = np.random.randint(0, self.length, size=batch_size)
+        batch = dict(states=self.samples['states'][idxs],
+                     actions=self.samples['actions'][idxs])
+        return batch
