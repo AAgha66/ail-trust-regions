@@ -40,7 +40,7 @@ class ReplayBuffer:
 
 class SAC:
     def __init__(self, env, actor_critic=core.MLPActorCritic,
-                 alpha=0.2, gamma=0.99, polyak=0.995, lr=1e-3):
+                 alpha=0.2, gamma=0.99, polyak=0.995, lr=3e-4):
         # Create actor-critic module and target networks
         self.ac = actor_critic(env.observation_space, env.action_space)
         self.ac_targ = deepcopy(self.ac)
