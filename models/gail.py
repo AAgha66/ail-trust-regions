@@ -132,15 +132,22 @@ class Discriminator(nn.Module):
         grad_norms = []
         for expert_batch in expert_loader:
             expert_state, expert_action = expert_batch
-            expert_state = obsfilt(expert_state.numpy(), update=False)
-            expert_state = torch.FloatTensor(expert_state).to(self.device)
+            if obsfilt:
+                expert_state = obsfilt(expert_state.numpy(), update=False)
+                expert_state = torch.FloatTensor(expert_state).to(self.device)
+            else:
+                expert_state = torch.FloatTensor(expert_state.numpy()).to(self.device)
             expert_action = expert_action.to(self.device)
             expert_d = self.trunk(
                 torch.cat([expert_state, expert_action], dim=1))
             acc_expert.append(torch.sum(torch.sigmoid(expert_d) > 0.5) / expert_d.shape[0])
 
-            policy_batch = replay_buffer.sample_batch(expert_state.shape[0])
-            policy_state, policy_action = policy_batch['obs'], policy_batch['act']
+            # Sample a batch from memory
+            policy_state, policy_action, _, _, _ = replay_buffer.sample(
+                batch_size=expert_state.shape[0])
+            policy_state = torch.FloatTensor(policy_state).to(self.device)
+            policy_action = torch.FloatTensor(policy_action).to(self.device)
+
             policy_d = self.trunk(
                 torch.cat([policy_state, policy_action], dim=1))
             acc_policy.append(torch.sum(torch.sigmoid(policy_d) < 0.5) / policy_d.shape[0])

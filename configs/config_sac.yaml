@@ -1,7 +1,7 @@
  algo: 'ppo'
 
  use_gail: True
- gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
+ gail_experts_dir: 'gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
  lr_disc: 1.0e-6
@@ -26,15 +26,13 @@
  policy_epoch: 10
  mini_batch_size: 256
 
- logging: True
- summary: True
- track_vf: True
+ logging: False
  save_model: False
  log_interval: 2048
  eval_interval: 4096
 
  num_env_steps: 5.0e+6
- env_name: 'Walker2d-v2'
+ env_name: 'HalfCheetah-v2'
  logging_dir: './logs_gail_sac/'
  log_dir: '/tmp/gym/'
 
