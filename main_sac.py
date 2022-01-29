@@ -11,73 +11,35 @@ from utils.arguments import get_args_dict
 from models import gail
 import utils.utils
 
-parser = argparse.ArgumentParser(description='PyTorch Soft Actor-Critic Args')
-parser.add_argument('--env-name', default="HalfCheetah-v2",
-                    help='Mujoco Gym environment (default: HalfCheetah-v2)')
-parser.add_argument('--policy', default="Gaussian",
-                    help='Policy Type: Gaussian | Deterministic (default: Gaussian)')
-parser.add_argument('--eval', type=bool, default=True,
-                    help='Evaluates a policy a policy every 10 episode (default: True)')
-parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
-                    help='discount factor for reward (default: 0.99)')
-parser.add_argument('--tau', type=float, default=0.005, metavar='G',
-                    help='target smoothing coefficient(τ) (default: 0.005)')
-parser.add_argument('--lr', type=float, default=0.0003, metavar='G',
-                    help='learning rate (default: 0.0003)')
-parser.add_argument('--alpha', type=float, default=0.2, metavar='G',
-                    help='Temperature parameter α determines the relative importance of the entropy\
-                            term against the reward (default: 0.2)')
-parser.add_argument('--automatic_entropy_tuning', type=bool, default=True, metavar='G',
-                    help='Automaically adjust α (default: False)')
-parser.add_argument('--seed', type=int, default=123456, metavar='N',
-                    help='random seed (default: 123456)')
-parser.add_argument('--batch_size', type=int, default=256, metavar='N',
-                    help='batch size (default: 256)')
-parser.add_argument('--num_steps', type=int, default=1000001, metavar='N',
-                    help='maximum number of steps (default: 1000000)')
-parser.add_argument('--hidden_size', type=int, default=256, metavar='N',
-                    help='hidden size (default: 256)')
-parser.add_argument('--updates_per_step', type=int, default=1, metavar='N',
-                    help='model updates per simulator step (default: 1)')
-parser.add_argument('--start_steps', type=int, default=10000, metavar='N',
-                    help='Steps sampling random actions (default: 10000)')
-parser.add_argument('--target_update_interval', type=int, default=1, metavar='N',
-                    help='Value target update per no. of updates per step (default: 1)')
-parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
-                    help='size of replay buffer (default: 10000000)')
-parser.add_argument('--cuda', action="store_true",
-                    help='run on CUDA (default: False)')
-args = parser.parse_args()
+
+"""def main(config=None, args_dict=None, overwrite=False):
+if args_dict is None:"""
+args_dict = get_args_dict(config="configs/config_sac.yaml")
 
 # Environment
 # env = NormalizedActions(gym.make(args.env_name))
-env = gym.make(args.env_name)
-env.seed(args.seed)
-env.action_space.seed(args.seed)
+env = gym.make(args_dict['env_name'])
+env.seed(args_dict['seed'])
+env.action_space.seed(args_dict['seed'])
 
-torch.manual_seed(args.seed)
-np.random.seed(args.seed)
+torch.manual_seed(args_dict['seed'])
+np.random.seed(args_dict['seed'])
 
 # Agent
-agent = SAC(env.observation_space.shape[0], env.action_space, args)
+agent = SAC(env.observation_space.shape[0], env.action_space, args_dict)
 
 # Tesnorboard
 writer = SummaryWriter(
-    'runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args.env_name,
-                                  args.policy, "autotune" if args.automatic_entropy_tuning else ""))
+    'runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args_dict['env_name'],
+                                  "Gaussian", "autotune" if args_dict['automatic_entropy_tuning'] else ""))
 
 # Memory
-memory = ReplayMemory(args.replay_size, args.seed)
+memory = ReplayMemory(1000000, args_dict['seed'])
 
 # Training Loop
 total_numsteps = 0
 updates = 0
-args_dict = None
-config = "configs/config_sac.yaml"
 device = 'cpu'
-
-if args_dict is None:
-    args_dict = get_args_dict(config=config)
 
 discr = None
 gail_train_loader = None
@@ -116,25 +78,23 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
-        if args.start_steps > total_numsteps:
+        if args_dict['start_steps'] > total_numsteps:
             action = env.action_space.sample()  # Sample random action
         else:
             action = agent.select_action(state)  # Sample action from policy
 
-        if len(memory) > args.batch_size:
+        if len(memory) > args_dict['mini_batch_size']:
             if args_dict['use_gail']:
-                gail_epoch = args_dict['gail_epoch']
-                if total_numsteps < 10 * args_dict['update_after']:
-                    gail_epoch = 100  # Warm up
-                for _ in range(args.updates_per_step):
+                for _ in range(args_dict['updates_per_step']):
                     # expert_batch = expert_dataset.sample_batch(batch_size=args_dict['gail_batch_size'])
                     _, disc_grad_norm_epoch, acc_policy_epoch, acc_expert_epoch = \
                         discr.update_sac(gail_train_loader, memory)
             # Number of updates per step in environment
-            for i in range(args.updates_per_step):
+            for i in range(args_dict['updates_per_step']):
                 # Update parameters of all the networks
                 critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(memory,
-                                                                                                     args.batch_size,
+                                                                                                     args_dict[
+                                                                                                         'mini_batch_size'],
                                                                                                      updates,
                                                                                                      discr=discr)
 
@@ -158,7 +118,7 @@ for i_episode in itertools.count(1):
 
         state = next_state
 
-    if total_numsteps > args.num_steps:
+    if total_numsteps > args_dict['num_env_steps']:
         break
 
     writer.add_scalar('reward/train', episode_reward, i_episode)
@@ -166,7 +126,7 @@ for i_episode in itertools.count(1):
                                                                                   episode_steps,
                                                                                   round(episode_reward, 2)))
 
-    if i_episode % 10 == 0 and args.eval is True:
+    if i_episode % 10 == 0:
         avg_reward = 0.
         episodes = 10
         for _ in range(episodes):
@@ -190,3 +150,13 @@ for i_episode in itertools.count(1):
         print("----------------------------------------")
 
 env.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='RL')
+    parser.add_argument(
+        '--config', default='configs/ppo.yaml', help='config file with training parameters')
+    parser.add_argument('-o', dest='overwrite', action='store_true')
+
+    args_ = parser.parse_args()
+    main(config=args_.config, overwrite=args_.overwrite)

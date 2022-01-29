@@ -4,7 +4,7 @@ import numpy as np
 class ReplayMemory:
     def __init__(self, capacity, seed):
         random.seed(seed)
-        self.capacity = capacity
+        self.capacity = int(capacity)
         self.buffer = []
         self.position = 0
 

@@ -1,50 +1,51 @@
- algo: 'ppo'
+algo: 'ppo'
 
- use_gail: True
- gail_experts_dir: 'gail_experts/'
- gail_batch_size: 128
- gail_epoch: 5
- lr_disc: 1.0e-6
- num_trajectories: 4
- gradient_penalty: False
- spectral_norm: False
- airl_reward: False
+use_gail: True
+gail_experts_dir: 'gail_experts/'
+gail_batch_size: 128
+gail_epoch: 5
+lr_disc: 1.0e-6
+num_trajectories: 4
+gradient_penalty: False
+spectral_norm: False
+airl_reward: False
 
- eps: 1.0e-5
- gamma: 0.99
- gae_lambda: 0.95
- entropy_coef: 0
- value_loss_coef: 1.0
- max_grad_norm: 0.5
+eps: 1.0e-5
+gamma: 0.99
+gae_lambda: 0.95
+entropy_coef: 0
+value_loss_coef: 1.0
+max_grad_norm: 0.5
 
- seed: 0
- cuda_deterministic: False
- num_processes: 1
- num_steps: 2048
- cuda: False
+seed: 123456
+cuda_deterministic: False
+num_processes: 1
+num_steps: 2048
+cuda: False
 
- policy_epoch: 10
- mini_batch_size: 256
+mini_batch_size: 256
 
- logging: False
- save_model: False
- log_interval: 2048
- eval_interval: 4096
+logging: False
+save_model: False
+log_interval: 2048
+eval_interval: 4096
 
- num_env_steps: 5.0e+6
- env_name: 'HalfCheetah-v2'
- logging_dir: './logs_gail_sac/'
- log_dir: '/tmp/gym/'
+num_env_steps: 1.0e+6
+env_name: 'HalfCheetah-v2'
+logging_dir: './logs_gail_sac/'
+log_dir: '/tmp/gym/'
 
- norm_obs: False
- norm_reward: False
- clip_obs: 1.0e+6
- clip_reward: 1.0e+6
- lr_policy: 1.0e-3
+norm_obs: False
+norm_reward: False
+clip_obs: 1.0e+6
+clip_reward: 1.0e+6
+lr: 0.0003
 
- start_steps: 10000
- max_ep_len: 1000
- update_after: 1000
- update_every: 50
- polyak: 0.995
- replay_size: 1.0e+6
+start_steps: 10000
+replay_size: 1.0e+6
+updates_per_step: 1
+automatic_entropy_tuning: True
+hidden_size: 256
+tau: 0.005
+alpha: 0.2
+target_update_interval: 1
