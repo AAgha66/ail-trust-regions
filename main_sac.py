@@ -15,7 +15,7 @@ import shutil
 import yaml
 import csv
 from collections import deque
-
+import mj_envs
 
 def main(config=None, args_dict=None, overwrite=False):
     if args_dict is None:
