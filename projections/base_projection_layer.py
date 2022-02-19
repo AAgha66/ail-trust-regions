@@ -18,7 +18,7 @@ import torch as ch
 from typing import Union
 from utils.projection_utils import gaussian_kl, get_entropy_schedule
 from utils.torch_utils import tensorize
-from models.distributions import FixedNormal
+from utils.distribution_utils import FixedNormal
 
 
 def entropy_inequality_projection(p_dist: FixedNormal,

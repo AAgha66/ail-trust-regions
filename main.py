@@ -92,8 +92,12 @@ def main(config=None, args_dict=None, overwrite=False):
     num_updates = int(args_dict['num_env_steps'] // args_dict['num_steps'] // args_dict['num_processes'])
 
     actor_critic = Policy(
-        envs.observation_space.shape,
-        envs.action_space)
+        envs.observation_space.shape, envs.action_space,
+        target_entropy=args_dict['target_entropy'],
+        temperature=args_dict['temperature'],
+        entropy_schedule=args_dict['entropy_schedule'],
+    total_train_steps=num_updates)
+
     actor_critic.to(device)
     # If BCGAIL, then decay factor and gamma should be float
     if args_dict['bcgail']:
@@ -228,7 +232,7 @@ def main(config=None, args_dict=None, overwrite=False):
         for step in range(args_dict['num_steps']):
             # Sample actions
             with torch.no_grad():
-                value, action, dist = actor_critic.act(rollouts.obs[step])
+                value, action, dist = actor_critic.act(rollouts.obs[step], j)
             # Obser reward and next obs
             obs, reward, done, infos = envs.step(action)
 
@@ -332,7 +336,7 @@ def main(config=None, args_dict=None, overwrite=False):
                     normalized_expert_state = utils.utils.get_vec_normalize(envs)._obfilt(
                         tracking_trajs['states'][traj].type(torch.FloatTensor).numpy(), update=False)
                     normalized_expert_state = torch.FloatTensor(normalized_expert_state).to(device)
-                    values, tracking_dist = actor_critic.evaluate_actions(normalized_expert_state)
+                    values, tracking_dist = actor_critic.evaluate_actions(normalized_expert_state, j)
                     tracking_values.append(values)
                     tracking_log_probs.append(
                         tracking_dist.log_probs(tracking_trajs['actions'][traj].type(torch.FloatTensor)))

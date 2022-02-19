@@ -11,21 +11,22 @@ class Flatten(nn.Module):
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_shape, action_space, base_kwargs=None):
+    def __init__(self, obs_shape, action_space, target_entropy, temperature, entropy_schedule, total_train_steps, base_kwargs=None):
         super(Policy, self).__init__()
         if base_kwargs is None:
             base_kwargs = {}
         base = MLPBase
         self.base = base(obs_shape[0], **base_kwargs)
         num_outputs = action_space.shape[0]
-        self.dist = DiagGaussian(self.base.output_size, num_outputs)
+        self.dist = DiagGaussian(self.base.output_size, num_outputs,
+                                 target_entropy, temperature, entropy_schedule, total_train_steps)
 
     def forward(self, inputs):
         raise NotImplementedError
 
-    def act(self, inputs, deterministic=False):
+    def act(self, inputs, global_steps=None, deterministic=False):
         value, actor_features = self.base(inputs)
-        dist = self.dist(actor_features)
+        dist = self.dist(actor_features, global_steps)
 
         if deterministic:
             action = dist.mode()
@@ -34,9 +35,9 @@ class Policy(nn.Module):
 
         return value, action, dist
 
-    def get_action(self, inputs, deterministic=False):
+    def get_action(self, inputs, global_steps=None, deterministic=False):
         value, actor_features = self.base(inputs)
-        dist = self.dist(actor_features)
+        dist = self.dist(actor_features, global_steps)
 
         if deterministic:
             action = dist.mode()
@@ -48,9 +49,9 @@ class Policy(nn.Module):
         value, _ = self.base(inputs)
         return value
 
-    def evaluate_actions(self, inputs):
+    def evaluate_actions(self, inputs, global_steps=None):
         value, actor_features = self.base(inputs)
-        dist = self.dist(actor_features)
+        dist = self.dist(actor_features, global_steps)
 
         return value, dist
 
