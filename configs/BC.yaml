@@ -2,8 +2,8 @@
 
  gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
  gail_batch_size: 32
- num_trajectories: 4
- 
+ num_trajectories: 10
+
  eps: 1.0e-5
  gamma: 0.99
  max_grad_norm: 0.5
@@ -11,7 +11,7 @@
  seed: 0
  cuda_deterministic: False
  num_processes: 1
- num_steps: 16384
+ num_steps: 2048
 
  logging: True
  summary: True
@@ -20,9 +20,9 @@
  log_interval: 2
  eval_interval: 4
  track_interval: 10
- 
- num_env_steps: 10.0e+6
- env_name: 'hammer-v0'
+
+ num_env_steps: 5.0e+6
+ env_name: 'Walker2d-v2'
  logging_dir: './logs_bc/'
  log_dir: '/home/kit/anthropomatik/kn6273/gym'
 
