@@ -1,6 +1,6 @@
 import numpy as np
 import torch.nn as nn
-
+import torch
 from models.distributions import DiagGaussian
 from utils.utils import init
 
@@ -11,23 +11,25 @@ class Flatten(nn.Module):
 
 
 class Policy(nn.Module):
-    def __init__(self, obs_shape, action_space, target_entropy, temperature, entropy_schedule, total_train_steps, base_kwargs=None):
+    def __init__(self, obs_shape, action_space, base_kwargs=None):
         super(Policy, self).__init__()
         if base_kwargs is None:
             base_kwargs = {}
         base = MLPBase
         self.base = base(obs_shape[0], **base_kwargs)
         num_outputs = action_space.shape[0]
-        self.dist = DiagGaussian(self.base.output_size, num_outputs,
-                                 target_entropy, temperature, entropy_schedule, total_train_steps)
+        self.dist = DiagGaussian(self.base.output_size, num_outputs)
+        self.entropy_bound = None
 
     def forward(self, inputs):
         raise NotImplementedError
 
-    def act(self, inputs, global_steps=None, deterministic=False):
+    def act(self, inputs, deterministic=False):
         value, actor_features = self.base(inputs)
-        dist = self.dist(actor_features, global_steps)
-
+        batched_bound = None
+        if self.entropy_bound is not None:
+            batched_bound = self.entropy_bound * torch.ones(inputs.shape[0])
+        dist = self.dist(actor_features, batched_bound)
         if deterministic:
             action = dist.mode()
         else:
@@ -35,9 +37,12 @@ class Policy(nn.Module):
 
         return value, action, dist
 
-    def get_action(self, inputs, global_steps=None, deterministic=False):
+    def get_action(self, inputs, deterministic=False):
         value, actor_features = self.base(inputs)
-        dist = self.dist(actor_features, global_steps)
+        batched_bound = None
+        if self.entropy_bound is not None:
+            batched_bound = self.entropy_bound * torch.ones(inputs.shape[0])
+        dist = self.dist(actor_features, batched_bound)
 
         if deterministic:
             action = dist.mode()
@@ -49,9 +54,12 @@ class Policy(nn.Module):
         value, _ = self.base(inputs)
         return value
 
-    def evaluate_actions(self, inputs, global_steps=None):
+    def evaluate_actions(self, inputs):
         value, actor_features = self.base(inputs)
-        dist = self.dist(actor_features, global_steps)
+        batched_bound = None
+        if self.entropy_bound is not None:
+            batched_bound = self.entropy_bound * torch.ones(inputs.shape[0])
+        dist = self.dist(actor_features, batched_bound)
 
         return value, dist
 
@@ -61,6 +69,7 @@ class NNBase(nn.Module):
         super(NNBase, self).__init__()
         self._num_inputs = num_inputs
         self._hidden_size = hidden_size
+
     @property
     def output_size(self):
         return self._hidden_size

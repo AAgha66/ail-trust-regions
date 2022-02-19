@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from utils.projection_utils import compute_metrics, gaussian_kl
+from utils.projection_utils import compute_metrics
 from projections.projection_factory import get_projection_layer
 from models.distributions import FixedNormal
 from torch.autograd import Variable
@@ -98,7 +98,7 @@ class PPO:
             for sample in data_generator:
                 obs_batch, actions_batch, value_preds_batch, return_batch, _, _, adv_targ, old_means, old_stddevs = sample
                 # Reshape to do in a single forward pass for all steps
-                values, dist = self.actor_critic.evaluate_actions(obs_batch, self.global_steps)
+                values, dist = self.actor_critic.evaluate_actions(obs_batch)
 
                 old_dist = FixedNormal(old_means, old_stddevs)
                 # set initial entropy value in first step to calculate appropriate entropy decay
@@ -138,7 +138,7 @@ class PPO:
                             exp_state = torch.FloatTensor(exp_state)
                         exp_state = Variable(exp_state).to(action_loss.device)
                         exp_action = Variable(exp_action).to(action_loss.device)
-                        _, expert_dist = self.actor_critic.evaluate_actions(exp_state, self.global_steps)
+                        _, expert_dist = self.actor_critic.evaluate_actions(exp_state)
                         expert_action_log_probs = expert_dist.log_probs(exp_action)
                         bcloss = -expert_action_log_probs.mean()
                         # Multiply this coeff with decay factor
@@ -207,7 +207,7 @@ class PPO:
         for batch in data_generator_metric:
             obs_batch, _, _, _, _, _, _, old_means, old_stddevs = batch
             # Reshape to do in a single forward pass for all steps
-            _, dist = self.actor_critic.evaluate_actions(obs_batch, self.global_steps)
+            _, dist = self.actor_critic.evaluate_actions(obs_batch)
             old_dist = FixedNormal(old_means, old_stddevs)
             metrics = compute_metrics(old_dist, dist)
 
