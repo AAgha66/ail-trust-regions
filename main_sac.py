@@ -21,7 +21,7 @@ def main(config=None, args_dict=None, overwrite=False):
     if args_dict is None:
         args_dict = get_args_dict(config=config)
 
-    exp_name = "logs_gail_sac/"
+    exp_name = "logs_gail_sac{}/".format(args_dict['seed'])
     log_dir_ = args_dict['logging_dir'] + args_dict['env_name'] + '/' + exp_name
 
     f = None
