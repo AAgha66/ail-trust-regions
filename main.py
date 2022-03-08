@@ -274,7 +274,6 @@ def main(config=None, args_dict=None, overwrite=False):
                     rollouts.masks[step], update_rms=False,
                     use_disc_as_adv=args_dict['use_disc_as_adv'])
 
-        if not args_dict['use_disc_as_adv']:
             rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['use_td'], args_dict['gamma'],
                                      args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
 
