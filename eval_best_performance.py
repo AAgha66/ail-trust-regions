@@ -19,6 +19,13 @@ expert = {
 
 
 def CI(dataset):
+    """
+    Calculates 95% confidence interval given a list with all results
+    Args:
+        dataset: list with values from policy rollouts
+
+    Returns: upper and lower bounds of the 95th confidence interval
+    """
     # seed the random number generator
     np.random.seed(0)
     # bootstrap
@@ -47,6 +54,11 @@ def CI(dataset):
 
 
 def eval_best_performance(files):
+    """
+    Evaluates performance based on environment rewards
+    Args:
+        files: path of experiment as a dict in the form of {"key": "path"}
+    """
     lines_list = {}
     for key in files:
         lines = glob.glob(files[key] + '/*')
@@ -120,6 +132,11 @@ def eval_best_performance(files):
 
 
 def eval_dist(files):
+    """
+    Evaluates similarity metrics for Mujoco environment
+    Args:
+        files: path of experiment as a dict in the form of {"key": "path"}
+    """
     lines_list = {}
     for key in files:
         lines = glob.glob(files[key] + '/*')
@@ -199,6 +216,11 @@ def eval_dist(files):
 
 
 def eval_dist_ardoit(files):
+    """
+    Evaluates similarity metrics for Ardoit environment
+    Args:
+        files: path of experiment as a dict in the form of {"key": "path"}
+    """
     lines_list = {}
     for key in files:
         lines = glob.glob(files[key] + '/*')
@@ -285,6 +307,7 @@ def eval_dist_ardoit(files):
 
 
 if __name__ == "__main__":
+    # Example of dict expected as input for the evaluation methods
     paths_mujoco = {
         'hum_4_trl': '/home/kit/anthropomatik/kn6273/Repos/logs/training_21.10/training_hum/Humanoid-v2/mean_0.007/Humanoid-v2',
         'hum_10_trl': '/home/kit/anthropomatik/kn6273/Repos/logs/training_22.10/training_hum_10_traj/Humanoid-v2/trl/Humanoid-v2'}

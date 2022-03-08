@@ -40,7 +40,7 @@ class PPO:
                  use_bcgail=False):
 
         assert sum([clip_importance_ratio, use_projection]) == 1
-
+        # policy and vf
         self.actor_critic = actor_critic
 
         self.clip_param = clip_param
@@ -54,16 +54,14 @@ class PPO:
         self.gradient_clipping = gradient_clipping
         self.use_clipped_value_loss = use_clipped_value_loss
         self.clip_importance_ratio = clip_importance_ratio
-
+        # trl parameters
         self.mean_bound = mean_bound
         self.cov_bound = cov_bound
         self.trust_region_coeff = trust_region_coeff
+
         self.num_steps = num_steps
 
-        self.proj = None        
-        self.cos = None
-        self.action_space = action_space
-
+        self.proj = None
         if use_projection:
             self.proj = get_projection_layer(proj_type=proj_type, mean_bound=mean_bound,
                                              cov_bound=cov_bound, trust_region_coeff=trust_region_coeff,
@@ -73,11 +71,13 @@ class PPO:
                                              target_entropy=target_entropy, temperature=0.5, entropy_eq=entropy_eq,
                                              entropy_first=entropy_first, do_regression=False,
                                              cpu=True, dtype=torch.float32)
-
+        # all parameters of policy network
         self.policy_params = list(actor_critic.base.actor.parameters()) + list(actor_critic.dist.parameters())
+        # all parameters of value function
         self.vf_params = list(actor_critic.base.critic.parameters())
-
+        # set up optimizer for policy parameters
         self.optimizer_policy = optim.Adam(self.policy_params, lr=lr_policy, eps=eps)
+        # set up optimizer for value function parameters
         self.optimizer_vf = optim.Adam(self.vf_params, lr=lr_value, eps=eps)
 
         self.global_steps = 0
@@ -103,6 +103,7 @@ class PPO:
                 old_dist = FixedNormal(old_means, old_stddevs)
                 # set initial entropy value in first step to calculate appropriate entropy decay
                 new_dist = None
+                # in case using trust region layers -> project policy to trust region
                 if self.proj is not None:
                     if self.proj.initial_entropy is None:
                         self.proj.initial_entropy = old_dist.entropy().mean()
@@ -110,15 +111,18 @@ class PPO:
                 else:
                     new_dist = dist
 
+                # log prob of pi_{k-1}
                 old_action_log_probs_batch = old_dist.log_probs(actions_batch)
+                # log prob of pi_{k}
                 action_log_probs = new_dist.log_probs(actions_batch)
-                
+                # entropy of policy
                 dist_entropy = new_dist.entropy().mean()
-
+                # liklihood ratio =  pi_{k} / pi_{k-1}
                 ratio = torch.exp(action_log_probs -
                                   old_action_log_probs_batch)
                 action_loss = None
                 surr1 = ratio * adv_targ
+                # in case using PPO use clipping objective
                 if self.clip_importance_ratio:
                     surr2 = torch.clamp(ratio, 1.0 - self.clip_param,
                                         1.0 + self.clip_param) * adv_targ
@@ -126,13 +130,16 @@ class PPO:
                 else:
                     action_loss = -surr1
 
-                # Trust region loss
+                # in case using region loss calculate Trust region loss = difference between predicted
+                # and projected policies
                 trust_region_loss = None
                 if self.proj is not None:
                     trust_region_loss = self.proj.get_trust_region_loss(dist, new_dist)
                 bcloss = None
+                # calculate supervised loss term
                 if self.use_bcgail:
                     for exp_state, exp_action in expert_dataset:
+                        # need to normalize the expert samples before feeding them to the policy network
                         if obfilt:
                             exp_state = obfilt(exp_state.numpy(), update=False)
                             exp_state = torch.FloatTensor(exp_state)
@@ -158,6 +165,7 @@ class PPO:
                 self.optimizer_policy.zero_grad()
 
                 if self.use_bcgail:
+                    # add supervised term
                     action_loss = self.gailgamma * bcloss + (1 - self.gailgamma) * action_loss.mean()
                 else:
                     action_loss = action_loss.mean()
@@ -185,6 +193,7 @@ class PPO:
                 if trust_region_loss:
                     trust_region_loss_epoch += trust_region_loss.item()
 
+        # update interpolation parameter in case using supervised loss
         if self.use_bcgail:
             self.gailgamma *= self.decay
             print('Gamma: {}'.format(self.gailgamma))

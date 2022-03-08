@@ -17,6 +17,7 @@ from evaluation import evaluate
 from torch.utils.tensorboard import SummaryWriter
 import mj_envs
 
+
 def main(config=None, args_dict=None, overwrite=False):
     if args_dict is None:
         args_dict = get_args_dict(config=config)
@@ -277,7 +278,8 @@ def main(config=None, args_dict=None, overwrite=False):
             rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['use_td'], args_dict['gamma'],
                                      args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
 
-        metrics = agent.update(rollouts, expert_dataset=gail_train_loader, obfilt=utils.utils.get_vec_normalize(envs)._obfilt)
+        metrics = agent.update(rollouts, expert_dataset=gail_train_loader,
+                               obfilt=utils.utils.get_vec_normalize(envs)._obfilt)
         rollouts.after_update()
         total_num_steps = (j + 1) * args_dict['num_processes'] * args_dict['num_steps']
         if j % args_dict['log_interval'] == 0 and len(episode_rewards) > 1:
@@ -330,6 +332,7 @@ def main(config=None, args_dict=None, overwrite=False):
         if args_dict['track_vf'] and j % 30 == 0:
             tracking_trajs = tracking_expert_dataset.get_traj()
             with torch.no_grad():
+                # evaluate metrics on expert's trajectories
                 for traj in range(4):
                     normalized_expert_state = utils.utils.get_vec_normalize(envs)._obfilt(
                         tracking_trajs['states'][traj].type(torch.FloatTensor).numpy(), update=False)
