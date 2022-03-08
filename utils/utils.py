@@ -5,8 +5,6 @@ import torch.nn as nn
 from utils.envs import VecNormalize
 
 import torch
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 def MMD(x, y, kernel):
     """Emprical maximum mean discrepancy. The lower the result
@@ -25,9 +23,9 @@ def MMD(x, y, kernel):
     dyy = ry.t() + ry - 2. * yy # Used for B in (1)
     dxy = rx.t() + ry - 2. * zz # Used for C in (1)
     
-    XX, YY, XY = (torch.zeros(xx.shape).to(device),
-                  torch.zeros(xx.shape).to(device),
-                  torch.zeros(xx.shape).to(device))
+    XX, YY, XY = (torch.zeros(xx.shape),
+                  torch.zeros(xx.shape),
+                  torch.zeros(xx.shape))
     
     if kernel == "multiscale":
         
