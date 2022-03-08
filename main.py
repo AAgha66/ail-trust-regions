@@ -20,7 +20,7 @@ import mj_envs
 def main(config=None, args_dict=None, overwrite=False):
     if args_dict is None:
         args_dict = get_args_dict(config=config)
-
+    # set up logging
     exp_name = utils.utils.get_exp_name(args_dict)
     log_dir_ = args_dict['logging_dir'] + args_dict['env_name'] + '/' + exp_name
 
@@ -75,6 +75,7 @@ def main(config=None, args_dict=None, overwrite=False):
         with open(log_dir_ + '/args.yml', 'w') as outfile:
             yaml.dump(args_dict, outfile, default_flow_style=False)
 
+    # set up seeds
     torch.manual_seed(args_dict['seed'])
     torch.cuda.manual_seed_all(args_dict['seed'])
 
@@ -84,13 +85,13 @@ def main(config=None, args_dict=None, overwrite=False):
 
     torch.set_num_threads(1)
     device = torch.device("cuda:0" if args_dict['cuda'] else "cpu")
-
+    # set up environment
     envs = make_vec_envs(args_dict['env_name'], args_dict['seed'], args_dict['num_processes'],
                          args_dict['gamma'], args_dict['log_dir'], args_dict['norm_obs'],
                          args_dict['norm_reward'], args_dict['clip_obs'], args_dict['clip_reward'],
                          device, False)
     num_updates = int(args_dict['num_env_steps'] // args_dict['num_steps'] // args_dict['num_processes'])
-
+    # set up policy and value networks
     actor_critic = Policy(
         envs.observation_space.shape,
         envs.action_space)
@@ -107,6 +108,7 @@ def main(config=None, args_dict=None, overwrite=False):
         print('Gamma: {}, decay: {}'.format(args_dict['gailgamma'], args_dict['decay']))
         print('BCGAIL used')
 
+    # choose optimization algorithm: 'ppo' for ppo & trust region layers
     if args_dict['algo'] == 'ppo':
         agent = ppo.PPO(
             actor_critic=actor_critic,
@@ -160,6 +162,7 @@ def main(config=None, args_dict=None, overwrite=False):
     gail_train_loader = None
     expert_dataset = None
     tracking_expert_dataset = None
+    # load expert trajectories to measure similarity metrics during training
     if args_dict['track_vf']:
         file_name = args_dict['gail_experts_dir'] + args_dict['env_name'] + \
                     '_num_traj_' + str(4) + '.pt'
@@ -213,7 +216,7 @@ def main(config=None, args_dict=None, overwrite=False):
 
     # variables needed for tracking the gradients values in the tensorboard
     gail_iters = 0
-    policy_iters = 0
+
     list_eval_rewards = []
     best_eval = -np.inf
     old_values = None
