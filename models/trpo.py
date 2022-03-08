@@ -133,7 +133,7 @@ class TRPO():
                 break
         return x
 
-    def update(self, rollouts, j=None, use_disc_as_adv=None, expert_dataset=None, obfilt=None):
+    def update(self, rollouts, j, use_disc_as_adv):
         self.global_steps = j
         # ----------------------------
         # step 1: get returns and GAEs

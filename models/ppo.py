@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from utils.projection_utils import compute_metrics
+from utils.projection_utils import compute_metrics, gaussian_kl
 from projections.projection_factory import get_projection_layer
 from models.distributions import FixedNormal
 from torch.autograd import Variable

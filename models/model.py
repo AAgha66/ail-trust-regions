@@ -1,6 +1,6 @@
 import numpy as np
 import torch.nn as nn
-import torch
+
 from models.distributions import DiagGaussian
 from utils.utils import init
 
@@ -19,17 +19,14 @@ class Policy(nn.Module):
         self.base = base(obs_shape[0], **base_kwargs)
         num_outputs = action_space.shape[0]
         self.dist = DiagGaussian(self.base.output_size, num_outputs)
-        self.entropy_bound = None
 
     def forward(self, inputs):
         raise NotImplementedError
 
     def act(self, inputs, deterministic=False):
         value, actor_features = self.base(inputs)
-        batched_bound = None
-        if self.entropy_bound is not None:
-            batched_bound = self.entropy_bound * torch.ones(inputs.shape[0])
-        dist = self.dist(actor_features, batched_bound)
+        dist = self.dist(actor_features)
+
         if deterministic:
             action = dist.mode()
         else:
@@ -37,29 +34,13 @@ class Policy(nn.Module):
 
         return value, action, dist
 
-    def get_action(self, inputs, deterministic=False):
-        value, actor_features = self.base(inputs)
-        batched_bound = None
-        if self.entropy_bound is not None:
-            batched_bound = self.entropy_bound * torch.ones(inputs.shape[0])
-        dist = self.dist(actor_features, batched_bound)
-
-        if deterministic:
-            action = dist.mode()
-        else:
-            action = dist.sample()
-        return action
-
     def get_value(self, inputs):
         value, _ = self.base(inputs)
         return value
 
     def evaluate_actions(self, inputs):
         value, actor_features = self.base(inputs)
-        batched_bound = None
-        if self.entropy_bound is not None:
-            batched_bound = self.entropy_bound * torch.ones(inputs.shape[0])
-        dist = self.dist(actor_features, batched_bound)
+        dist = self.dist(actor_features)
 
         return value, dist
 
@@ -69,7 +50,6 @@ class NNBase(nn.Module):
         super(NNBase, self).__init__()
         self._num_inputs = num_inputs
         self._hidden_size = hidden_size
-
     @property
     def output_size(self):
         return self._hidden_size

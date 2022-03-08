@@ -17,7 +17,7 @@
 import numpy as np
 import torch as ch
 from typing import Tuple
-from utils.distribution_utils import FixedNormal
+from models.distributions import FixedNormal
 from utils.torch_utils import torch_batched_trace
 
 
@@ -162,10 +162,5 @@ def get_entropy_schedule(schedule_type, total_train_steps, dim):
     elif schedule_type == "exp":
         return lambda initial_entropy, target_entropy, temperature, step: target_entropy + (
                 initial_entropy - target_entropy) * temperature ** (10 * step / total_train_steps)
-    elif schedule_type == "const":
-        return lambda initial_entropy, target_entropy, temperature, step: target_entropy
-    elif schedule_type == "sigmoid":
-        return lambda initial_entropy, target_entropy, temperature, step: target_entropy * 1.0 / \
-                                                                          (1 + np.exp(- step + (total_train_steps * 0.5)))
     else:
         return lambda initial_entropy, target_entropy, temperature, step: initial_entropy.new([-np.inf])

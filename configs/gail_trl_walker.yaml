@@ -39,7 +39,7 @@
  env_name: 'Walker2d-v2'
  logging_dir: './logs_gail_reward/'
  log_dir: '/home/kit/anthropomatik/kn6273/gym'
- cuda: False
+ no_cuda: True
  use_proper_time_limits: True
 
  gradient_clipping: False

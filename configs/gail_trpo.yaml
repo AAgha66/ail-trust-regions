@@ -37,10 +37,10 @@
  eval_interval: 4
 
  num_env_steps: 25.0e+6
- env_name: 'door-v0'
+ env_name: 'HalfCheetah-v2'
  logging_dir: 'log/'
  log_dir: '/home/kit/anthropomatik/kn6273/gym'
- cuda: False
+ no_cuda: True
  use_proper_time_limits: True
 
  gradient_clipping: False
@@ -79,7 +79,7 @@
  use_gae: True
  use_td: False
  use_disc_as_adv: False
-
+ 
  #https://github.com/openai/baselines/blob/master/baselines/gail/run_mujoco.py
  max_kl: 0.01
  cg_damping: 0.1
@@ -88,6 +88,3 @@
  line_search_coef: 0.5 #0.9
  line_search_max_iter: 10
  line_search_accept_ratio: 0.1
- decay: 10.0
- gailgamma: 0.5
- bcgail: False

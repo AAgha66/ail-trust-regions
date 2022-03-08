@@ -15,8 +15,6 @@ from models.model import Policy
 from utils.storage import RolloutStorage
 from evaluation import evaluate
 from torch.utils.tensorboard import SummaryWriter
-import math
-from utils.projection_utils import get_entropy_schedule
 import mj_envs
 
 def main(config=None, args_dict=None, overwrite=False):
@@ -94,8 +92,8 @@ def main(config=None, args_dict=None, overwrite=False):
     num_updates = int(args_dict['num_env_steps'] // args_dict['num_steps'] // args_dict['num_processes'])
 
     actor_critic = Policy(
-        envs.observation_space.shape, envs.action_space)
-
+        envs.observation_space.shape,
+        envs.action_space)
     actor_critic.to(device)
     # If BCGAIL, then decay factor and gamma should be float
     if args_dict['bcgail']:
@@ -219,18 +217,6 @@ def main(config=None, args_dict=None, overwrite=False):
     list_eval_rewards = []
     best_eval = -np.inf
     old_values = None
-
-    initial_entropy = None
-    entropy_schedule = None
-    if args_dict['entropy_schedule'] != "None":
-        # first calculate the initial entropy
-        zeros = torch.zeros(envs.action_space.shape[0])
-        action_logstd = actor_critic.dist.logstd(zeros)
-        initial_entropy = (0.5 + 0.5 * math.log(2 * math.pi) + action_logstd).sum(-1).mean().item()
-        entropy_schedule = get_entropy_schedule(args_dict['entropy_schedule'],
-                                                num_updates,
-                                                dim=envs.action_space.shape[0])
-
     for j in range(num_updates):
         if args_dict['use_linear_lr_decay']:
             # decrease learning rate linearly
@@ -239,8 +225,6 @@ def main(config=None, args_dict=None, overwrite=False):
             utils.utils.update_linear_schedule(
                 agent.optimizer_vf, j, num_updates, args_dict['lr_value'])
 
-        if args_dict['entropy_schedule'] != "None":
-            agent.actor_critic.entropy_bound = entropy_schedule(initial_entropy, args_dict['target_entropy'], 0.5, j)
         for step in range(args_dict['num_steps']):
             # Sample actions
             with torch.no_grad():
@@ -326,10 +310,6 @@ def main(config=None, args_dict=None, overwrite=False):
                     actor_critic,
                     getattr(utils.utils.get_vec_normalize(envs), 'obs_rms', None)
                 ], os.path.join(log_dir_ + '/models', args_dict['env_name'] + ".pt"))
-                torch.save([
-                    discr,
-                    getattr(utils.utils.get_vec_normalize(envs), 'obs_rms', None),
-                ], os.path.join(log_dir_ + '/models', args_dict['env_name'] + "_discr.pt"))
 
                 best_eval = mean_eval_episode_rewards
 
