@@ -1,28 +1,29 @@
- algo: 'ppo'
+ algo: 'trpo'
 
  use_gail: True
  gail_experts_dir: '/home/kit/anthropomatik/kn6273/Repos/gail_experts/'
  gail_batch_size: 128
  gail_epoch: 5
- lr_disc: 1.0e-5
+ lr_disc: 0.0003
  num_trajectories: 4
  gradient_penalty: False
  spectral_norm: False
  airl_reward: False
- 
+
  eps: 1.0e-5
- gamma: 0.99
- gae_lambda: 0.95
+ gamma: 0.995
+ gae_lambda: 0.97
  entropy_coef: 0
- value_loss_coef: 1.0
+ value_loss_coef: 0.5
  max_grad_norm: 0.5
 
  seed: 0
  cuda_deterministic: False
  num_processes: 1
- num_steps: 2048
+ num_steps: 50000
 
  policy_epoch: 10
+ vf_epoch: 10
 
  mini_batch_size: 64
  clip_param: 0.2
@@ -30,28 +31,29 @@
  logging: True
  summary: True
  track_vf: True
- save_model: False
+ track_grad_kurtosis: True
+ save_model: True
  log_interval: 2
  eval_interval: 4
 
- num_env_steps: 1.0e+6
+ num_env_steps: 25.0e+6
  env_name: 'HalfCheetah-v2'
- logging_dir: './logs_gail_tr_ppo/'
- log_dir: '/home/kit/anthropomatik/kn6273/gym/'
+ logging_dir: 'log/'
+ log_dir: '/home/kit/anthropomatik/kn6273/gym'
  no_cuda: True
  use_proper_time_limits: True
 
- gradient_clipping: True
- use_linear_lr_decay: True
- use_clipped_value_loss: True
+ gradient_clipping: False
+ use_linear_lr_decay: False
+ use_clipped_value_loss: False
  norm_obs: True
- norm_reward: True
- clip_obs: 10.0
- clip_reward: 10.0
+ norm_reward: False
+ clip_obs: 1.0e+6
+ clip_reward: 1.0e+6
  lr_policy: 3.0e-4
  lr_value: 3.0e-4
 
- clip_importance_ratio: True
+ clip_importance_ratio: False
  use_projection: False
  proj_type: 'None'
  mean_bound: 0.0
@@ -65,6 +67,12 @@
 
  use_gae: True
  use_td: False
- decay: 10.0
- gailgamma: 0.5
- bcgail: False
+
+ #https://github.com/openai/baselines/blob/master/baselines/gail/run_mujoco.py
+ max_kl: 0.01
+ cg_damping: 0.1
+ cg_max_iters: 10
+
+ line_search_coef: 0.5 #0.9
+ line_search_max_iter: 10
+ line_search_accept_ratio: 0.1
