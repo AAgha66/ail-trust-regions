@@ -38,9 +38,6 @@ def get_args(trial, config):
     args_dict['use_td'] = config.params['use_td']
     args_dict['use_disc_as_adv'] = config.params['use_disc_as_adv']
 
-    #args_dict['lr_disc'] = trial.suggest_categorical("lr_disc", [3e-6, 1.0e-5, 3.0e-5, 1e-4, 3e-4, 1e-3])
-    #args_dict['lr_policy'] = trial.suggest_categorical("lr_policy", [1e-6, 3e-6, 1e-5, 3e-5, 1.0e-4, 3.0e-4, 1.0e-3])
-    #args_dict['lr_value'] = trial.suggest_categorical("lr_value", [1e-6, 3e-6, 1e-5, 3e-5, 1.0e-4, 3.0e-4, 1.0e-3])
     args_dict['lr_disc'] = trial.suggest_float("lr_disc", 1e-6, 1e-2, log=True)
     args_dict['lr_policy'] = trial.suggest_float("lr_policy", 1e-6, 1e-2, log=True)
     args_dict['lr_value'] = trial.suggest_float("lr_value", 1e-6, 1e-2, log=True)
@@ -61,8 +58,6 @@ def get_args(trial, config):
         args_dict['cov_bound'] = trial.suggest_float("cov_bound", 1e-6, 1e-2, log=True)
         args_dict['mean_bound'] = trial.suggest_float("mean_bound", 1e-6, 1e-1, log=True)
         
-        #args_dict['cov_bound'] = trial.suggest_categorical("cov_bound", [1.0e-05, 5.0e-05, 1.0e-04, 5.0e-04, 1.0e-03, 5.0e-03, 1.0e-02])
-        #args_dict['mean_bound'] = trial.suggest_categorical("mean_bound", [1.0e-04, 5.0e-04, 1.0e-03, 5.0e-03, 1.0e-02, 5.0e-02, 1.0e-01])
         args_dict['trust_region_coeff'] = trial.suggest_int("trust_region_coeff", 4, 20, step=2)
         
         args_dict['target_entropy'] = 0
@@ -88,6 +83,5 @@ def run_study(config):
     study_name = config.params['study_name'] + config.params['env_name'] 
     storage_name = "sqlite:///{}.db".format(study_name)    
     study = optuna.create_study(direction="maximize", study_name=study_name, storage=storage_name, load_if_exists=config.params['load_if_exists'])
-    #search_space = {"lr_disc": [1e-6, 3e-6, 1.0e-5, 3.0e-5, 1e-4, 3e-4, 1e-3]}
-    #study = optuna.create_study(direction="maximize", study_name=study_name, storage=storage_name, load_if_exists=config.params['load_if_exists'], sampler=optuna.samplers.GridSampler(search_space))
+
     study.optimize(lambda trial: objective_wrapper(trial, config), n_trials=config.params['n_trials'])
