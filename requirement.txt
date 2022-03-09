@@ -16,7 +16,7 @@ tensorboard-data-server==0.6.1
 tensorboard-plugin-wit==1.8.0
 tensorboardX==2.2
 torch==1.8.1
-torchaudio==0.8.0a0+e4e171a
-torchvision==0.9.1
+torchaudio
+torchvision
 typing-extensions
 xmltodict==0.12.0
