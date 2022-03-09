@@ -17,6 +17,11 @@ length = {'hammer-v0': 200, 'door-v0': 200, 'HalfCheetah-v2': 1000, 'Walker2d-v2
 
 
 def eval_mmd(files):
+    """
+    calculates mmd metric for state-action pairs
+    Args:
+        files: path of experiment as a dict in the form of {"key": "path"}
+    """
     lines_list = {}
     for key in files:
         with open(files[key] + '/inliers.txt', 'r') as file:
