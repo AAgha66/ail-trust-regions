@@ -273,7 +273,7 @@ def main(config=None, args_dict=None, overwrite=False):
                 rollouts.rewards[step] = discr.predict_reward(
                     rollouts.obs[step], rollouts.actions[step], args_dict['gamma'],
                     rollouts.masks[step], update_rms=False,
-                    use_disc_as_adv=args_dict['use_disc_as_adv'])
+                    use_disc_as_adv=False)
 
             rollouts.compute_returns(next_value, args_dict['use_gae'], args_dict['use_td'], args_dict['gamma'],
                                      args_dict['gae_lambda'], args_dict['use_proper_time_limits'])
