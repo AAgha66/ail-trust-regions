@@ -24,13 +24,13 @@ conda install pytorch torchvision -c soumith
 # Other requirements
 pip install -r requirements.txt
 ```
-
-* Install cpp projection according to instructions in [trust region layers](https://github.com/boschresearch/trust-region-layers/tree/main/cpp_projection).
 * Install Adroit environments according to instructions in the [DAPG project](https://github.com/aravindr93/hand_dapg).
+* Install cpp projection according to instructions in [trust region layers](https://github.com/boschresearch/trust-region-layers/tree/main/cpp_projection).
+
 
 ## Training
 
-* First add expert files from [Drive](https://drive.google.com/drive/folders/1Y0cIgt9T-BsK6ITTLY1CtX3bY6t42TL3?usp=sharing).
+* First add expert files from [Drive](https://drive.google.com/drive/folders/1Y0cIgt9T-BsK6ITTLY1CtX3bY6t42TL3?usp=sharing) to /gail_experts/.
 * Training settings and hyperparameters are all setup in the config files in /configs. 
 * Make sure you create directory /tmp/gym needed by gym for logging
 
