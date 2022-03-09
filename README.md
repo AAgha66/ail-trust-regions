@@ -30,7 +30,9 @@ pip install -r requirements.txt
 
 ## Training
 
-Training settings and hyperparameters are all setup in the config files in /configs. 
+* First add expert files from [Drive](https://drive.google.com/drive/folders/1Y0cIgt9T-BsK6ITTLY1CtX3bY6t42TL3?usp=sharing).
+* Training settings and hyperparameters are all setup in the config files in /configs. 
+* Make sure you create directory /tmp/gym needed by gym for logging
 
 ```bash
  python main.py --config=configs/gail_trl.yaml
