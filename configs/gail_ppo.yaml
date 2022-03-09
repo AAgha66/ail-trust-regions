@@ -35,7 +35,7 @@
  eval_interval: 4
 
  num_env_steps: 1.0e+6
- env_name: 'door-v0'
+ env_name: 'HalfCheetah-v2'
  logging_dir: './logs_gail_tr_ppo/'
  log_dir: '/tmp/gym'
  no_cuda: True

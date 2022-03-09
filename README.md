@@ -35,7 +35,7 @@ pip install -r requirements.txt
 * Make sure you create directory /tmp/gym needed by gym for logging
 
 ```bash
- python main.py --config=configs/gail_trl.yaml
+ python main.py --config=configs/gail_ppo.yaml
 ```
 
 ## Evaluation
